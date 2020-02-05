@@ -10,12 +10,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Get specific images (input image type, object name, level of reduction, etc.)
-def get_images(directory, imtype=None, objectname=None, redlevel=None, display_options=False):
+def get_images(directory, imtype='*', objectname='*', filt='*', redlevel=None, display_options=False):
 	'''
 	This function returns a list of images given input parameters specifying the type of images needed.
 
 	Parameters
-	----------------
+	----------
 	directory : str
 		The directory in which getImages should look for .fits files. 
 
@@ -26,6 +26,10 @@ def get_images(directory, imtype=None, objectname=None, redlevel=None, display_o
 	objectname : str
 		The OBJECT keyword in the header of the .fits files to be returned. Used to indicate which
 		target (eg. UGC1171, NGC628, etc.) is desired.
+	
+	filt : str
+		The FILTER keyword in the header of the .fits files to be returned. Used to indicate which
+		telescope filter (eg. B-BESSEL, R-BESSEL, etc.) is desired.
 
 	redlevel : str
 		The level of image reduction desired in the returned images. 
@@ -41,18 +45,35 @@ def get_images(directory, imtype=None, objectname=None, redlevel=None, display_o
 		Returns dict containing information about available options for the input parameters given the .fits 
 		files in the given directory
 
-	array (when display_options == False)
-		Returns an array of filenames (strings) consistent with the input parameters	
+	list (when display_options == False)
+		Returns a list of image filenames consistent with the input parameters	
 	
 	'''
 
+	path = Path(directory)
+	keys = ['imagetyp','object','filter','propid','exptime']
+	all_images = ImageFileCollection(path, keywords=keys)		
+
 	if display_options:
-		options = dict([
-				]) # Do stuff
-		return options
+		images = all_images.filter(imagetyp=imtype, object=objectname, filter=filt)
+
+		options = {}
+
+		options['imtype'] = images.values('imagetyp', unique=True)
+		options['objectname'] = images.values('object', unique=True)
+		options['filt'] = images.values('filter', unique=True)
+
+		print('Options','-------',sep='\n')		
+		print('\n','imtype:', options['imtype'], sep='')
+		print('\n', 'objectname:', options['objectname'], sep='')
+		print('\n', 'filt:', options['filt'], sep='')
+
+		return images
 	
 	else:
-		images = [] # Do stuff
+
+		images = all_images.files_filtered(include_path=True, imagetyp=imtype, object=objectname, filter=filt)
+
 		return images	
 
 # Calculate given image stats
@@ -61,7 +82,7 @@ def calc_stats(images):
 	This function accepts a list of images and returns basic statistics for the image counts
 	
 	Parameters
-	----------------
+	----------
 	images : array of strings
 		This is the list of filenames for which to calculate basic statistics
 
@@ -80,7 +101,7 @@ def show_image(image):
 	This function displays a given image in a notebook
 
 	Parameters
-	----------------
+	----------
 	image : arr
 		This is a 2D array representing the image to be displayed
 
