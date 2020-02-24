@@ -17,7 +17,10 @@ python reduce.py --<raw_image_directory>
 where <raw_image_directory> is some string specifying the path to the directory containing all the raw images you would like reduced as well as any flat fields, darks, bias images, etc. to be used in the reduction.
 
 ## Explanation of lbcreduce variables and options
-
+.
+.
+.
+.
 
 Kirsten Casey
 casey.395@osu.edu
