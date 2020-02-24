@@ -22,5 +22,4 @@ where <raw_image_directory> is some string specifying the path to the directory 
 .
 .
 
-Kirsten Casey
-casey.395@osu.edu
+Kirsten Casey: casey.395@osu.edu
