@@ -5,94 +5,84 @@ Functions for:
 	- displaying images in a notebook
 '''
 from ccdproc import ImageFileCollection
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy import stats
 
-# Get specific images (input image type, object name, level of reduction, etc.)
-def get_images(directory, imtype='*', objectname='*', filt='*', redlevel=None, display_options=False):
+# Get images to do the reduction
+def get_images(options):
 	'''
 	This function returns a list of images given input parameters specifying the type of images needed.
 
 	Parameters
 	----------
-	directory : str
-		The directory in which getImages should look for .fits files. 
-
-	imtype : str
-		The IMAGETYP keyword in the header of the .fits files to be returned. Used to indicate whether 
-		the returned images should be flats, biases, objects, etc.
-
-	objectname : str
-		The OBJECT keyword in the header of the .fits files to be returned. Used to indicate which
-		target (eg. UGC1171, NGC628, etc.) is desired.
-	
-	filt : str
-		The FILTER keyword in the header of the .fits files to be returned. Used to indicate which
-		telescope filter (eg. B-BESSEL, R-BESSEL, etc.) is desired.
-
-	redlevel : str
-		The level of image reduction desired in the returned images. 
-
-	display_options : bool
-		If True, get_images will not return a list of images but will instead return a dict of available
-		options for each other input parameter (imtype, objectname, redlevel) based on the contents of 
-		the .fits headers in the given directory.
+	options : dict
+		Options input for selecting images. Necessary items in dictionary are:
+			- image_dir : str
+				Directory where raw images are saved
+			- filenames : str or list of str
+				Filename(s) to be included in image processing (should include any flats, bias images, darks, etc. necessary for image reduction)
+			- glob_include : str
+				Unix-style filename segment used to include files (eg. \'lbcb*\')
+			- glob_exclude : str
+				Unix-style filename segment used to exclude files (eg. \'lbcr*\')
+			- include_attributes : dict
+				Dictionary describing elements in the header of FITS files with values to include from image_dir
+			- exclude_attributes : dict
+				Dictionary describing elements in the header of FITS files with values to exclude from image_dir  (does nothing if include_attributes is specified; cannot exclude flats, bias images, darks, etc.)
+			- check_output : int
+				Option specifying how much interaction with the program the user desires (0 is no interaction, 1 is some interaction, 2 is all interaction)
 
 	Returns
 	-------
-	dict (when display_options == True)
-		Returns dict containing information about available options for the input parameters given the .fits 
-		files in the given directory
-
-	list (when display_options == False)
-		Returns a list of image filenames consistent with the input parameters	
-	
+	all_images : ImageFileCollection
+		Returns an ImageFileCollection object containing information about the images desired for reduction
+	options : dict
+		Dictionary containing all the same information as the input dictionary but with any options that were changed from user interaction updated
 	'''
 
-	path = Path(directory)
-	keys = ['imagetyp','object','filter','propid','exptime']
-	all_images = ImageFileCollection(path, keywords=keys)		
+	# Get necessary images
+	all_images = ImageFileCollection(options['image_dir'], filenames=options['filenames'], glob_include=options['glob_include'])
 
-	if display_options:
-		images = all_images.filter(imagetyp=imtype, object=objectname, filter=filt)
 
-		options = {}
 
-		options['imtype'] = images.values('imagetyp', unique=True)
-		options['objectname'] = images.values('object', unique=True)
-		options['filt'] = images.values('filter', unique=True)
+	# Check that expected images are available
+	return all_images, options
 
-		print('Options','-------',sep='\n')		
-		print('\n','imtype:', options['imtype'], sep='')
-		print('\n', 'objectname:', options['objectname'], sep='')
-		print('\n', 'filt:', options['filt'], sep='')
-
-		return images
-	
-	else:
-
-		images = all_images.files_filtered(include_path=True, imagetyp=imtype, object=objectname, filter=filt)
-
-		return images	
 
 # Calculate given image stats
-def calc_stats(images):
+def calc_stats(images, sigma_clip=True, sigma=3.0, maxiters=5):
 	'''
 	This function accepts a list of images and returns basic statistics for the image counts
-	
+
 	Parameters
 	----------
-	images : array of strings
-		This is the list of filenames for which to calculate basic statistics
+	images : ImageFileCollection
+		This is an ImageFileCollection object of images for which to calculate basic statistics
 
 	Returns
 	-------
 	arr
 		Returns information about the mean, median, std dev, etc. count for each input image
-	
+
 	'''
-	stats = [] # Do stuff
+	num_images = len(images.summary)
+
+	mean = numpy.zeros(num_images)
+	median = numpy.zeros(num_images)
+	mad_std = numpy.zeros(num_images)
+	std = numpy.zeros(num_images)
+	counts = numpy.zeros(num_images)
+
+	i = 0
+	for im in images.data(do_not_scale_image_data=True):
+		data_sigclipped = stats.sigma_clip(im, sigma=sigma, maxiters=maxiters)
+		mean[i] = data_sigclipped.mean()
+		median[i] = data_sigclipped.median()
+		std[i] = data_sigclipped.std()
+		mad_std = stats.mad_std(data_sigclipped)
+		i+=1
+
 	return stats
 
 # Display given image (for use in notebooks)
@@ -109,8 +99,4 @@ def show_image(image):
 	-------
 	None
 	'''
-
-
-
-
-
+	return
