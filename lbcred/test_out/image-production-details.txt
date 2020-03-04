@@ -1,7 +1,0 @@
-This file describes the options used to process the images in /Users/kirstencasey/projects/LBCreduce/lbcred/test_raw_ims/. 
-The image processing was performed by lbcreduce on 2020-02-21 at 16:43:01.
-
-Notes input by user at runtime:
-
-
-Notes input by user after all image processing steps:

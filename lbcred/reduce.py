@@ -2,76 +2,58 @@ import tools, interactive, image
 import numpy as np
 import os, time, shutil, warnings
 
-def reduce(image_dir, do_overscan, overscan_model, combine_func, std_type, std, do_zero, do_dark, do_flat, do_stack, filenames, glob_include, glob_exclude, include_attributes, exclude_attributes, overwrite, out_dir, notes, check_output):
+affirmative = ['y','Y','yes','Yes']
+negative = ['n','N','no','No']
 
-    initial_options = {
-        'image_dir' : image_dir,
-        'do_overscan' : do_overscan,
-        'overscan_model' : overscan_model,
-        'combine_func' : combine_func,
-        'std_type' : std_type,
-        'std' : std,
-        'do_zero' : do_zero,
-        'do_dark' : do_dark,
-        'do_flat' : do_flat,
-        'do_stack' : do_stack,
-        'filenames' : filenames,
-        'glob_include' : glob_include,
-        'glob_exclude' : glob_exclude,
-        'include_attributes' : include_attributes,
-        'exclude_attributes' : exclude_attributes,
-        'overwrite' : overwrite,
-        'out_dir' : out_dir,
-        'check_output' : check_output
-    }
+def reduce(options, config_filename):
 
-    options_now = initial_options
+    # Read configuration file - NOTE THAT THIS FUNC ASSUMES DEFAULT OPTIONS FROM COMMAND LINE ARE None
+    initial_config = tools.initialize_config(options, config_filename) # Overwrite anything in the config file that was supplied via the command line
 
     # Do directory stuff
-    options_now, dir_overwritten = tools.initialize_directories(options_now)
+    config, dir_overwritten = interactive.initialize_directories(initial_config)
 
     # Get raw images
-    all_files, options_now = image.get_images(options_now)
-
-    # Create 2D bias images
-    if do_flat:
-        masterbias, options_now = tools.bias('2Dbias', options_now)
-
-    # Create zero frame
-    if do_zero:
-        zeroframe, options_now = tools.bias('zero', options_now)
+    all_files, config = image.get_images(config)
+    all_files, config= image.check_files(all_files, config)
+    '''
+    # Create master bias images (2D bias and zero frame)
+    if config['zero'] or config['flat']:
+        masterbias, options_now = tools.bias('2Dbias', options_now, all_files) # Needed for flat fields
+        zeroframe, options_now = tools.bias('zero', options_now, all_files)
 
     # Calibrate dark frames
-    if do_dark:
-        options_now = tools.dark(options_now)
+    if config['dark']:
+        options_now = tools.dark(options_now, all_files)
 
     # Check counts, calibrate flat fields
-    if do_flat:
-        options_now = tools.flat(options_now)
+    if config['flat']:
+        options_now = tools.flat(options_now, all_files)
 
     # Process images
-    options_now = tools.process(options_now)
+    if config['reduce_objects']:
+    options_now = tools.process(options_now, all_files)
 
     # Stack images
-    if do_stack:
-        options_now = tools.stack(options_now)
-
+    if config['stack']:
+        options_now = tools.stack(options_now, all_files)
+    '''
     # Ask for final notes (if check_output is not 0)
-    if options_now['check_output'] != 0:
+    if config['check_output']:
         response = input('Are there any other notes you would like to add to the output textfile? [y/n]: ')
-        if response == 'y' or response == 'yes':
+        if response in affirmative:
             end_notes = input('Notes to add: ')
         else:
             end_notes = ''
 
     # Make textfile specifying options used
-    if initial_options != options_now:
-        final_options = options_now
+    if config != initial_config:
+        final_config = config
     else:
-        final_options = None
+        final_config = None
 
     # Make textfile
-    tools.textfile(initial_options, notes, end_notes, dir_overwritten, final_options)
+    tools.textfile(initial_config, end_notes, dir_overwritten, final_config)
 
     # End
     return
@@ -81,26 +63,43 @@ def reduce(image_dir, do_overscan, overscan_model, combine_func, std_type, std, 
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser(description='Process raw LBC images.')
-    parser.add_argument('-i','--image_dir', type=str, required=True, help='name of directory containing all raw images to be used in analysis; if not running this program in the directory containing image_dir, make sure to include full path name')
-    parser.add_argument('-o','--overscan', type=bool, default=True, help='model, subtract, and trim overscan')
-    parser.add_argument('-m','--overscan_model', type=str, default='median', choices=['mean', 'median'], help='model fit to overscan before subtraction; mean includes sigma clipping') # Needs work
-    #parser.add_argument('-l','--legendre_order', type=int, default=3, choices=[0,1,2,3,4,5,6], help='if Legendre function is requested, this is the order of the function to be used') # Needs work
-    parser.add_argument('--combine_func', type=str, default='mean', choices=['mean','median'], help='function used to combine bias images, etc.; mean includes sigma clipping')
-    parser.add_argument('--std_type', type=str, default='mad_std', choices=['mad_std','std'], help='function used to identify outliers for modeling overscan, choosing useful flats, etc.')
-    parser.add_argument('--std', type=int, default=3, help='number of standard deviations from mean/median used to determine outliers for modeling overscan, choosing useful flats, etc.')
-    parser.add_argument('-z','--zero', type=bool, default=True, help='include zero frame subtraction in reduction')
-    parser.add_argument('-d','--dark', type=bool, default=False, help='include dark subtraction in reduction')
-    parser.add_argument('-f', '--flat', type=bool, default=True, help='include flat-fielding step in reduction')
-    parser.add_argument('-s', '--stack', type=str, default=True,help='stack images for each OBJECT after reduction steps')
-    parser.add_argument('--include_filenames', type=str or list of str, default=None,help='list of files to include in image reduction; should include any object images, flats, darks, bias images, etc. necessary for reduction')
-    parser.add_argument('--glob_include', type=list, default=None, help='Unix-style filename segment used to include files; only necessary if you don\'t want all files in image_dir used (eg. \'lbcb*\')')
-    parser.add_argument('--glob_exclude', type=list, default=None, help='Unix-style filename segment used to exclude files; (eg. \'*20191220*\')')
-    parser.add_argument('--include_attributes', type=dict, default=None, help='dictionary with FITS header keyword(s) to check for and a list of value(s) of that keyword to include in processing (ex. {\'propid\' : [\'OSU_dwarfsimg\']}); note that this does not affect the inclusion of flats, bias images, or dark frames')
-    parser.add_argument('--exclude_attributes', type=dict, default=None, help='dictionary with FITS header keyword(s) to check for and a list of value(s) of that keyword to exclude in processing (ex. {\'propid\' : [\'OSU_dwarfsimg\']}); note that this does not work for flats, bias images, or dark frames and that this does nothing if \'include_attribute\' is specified')
-    parser.add_argument('--overwrite', type=bool, default=False, help='overwrite existing directory for output images')
-    parser.add_argument('--out_dir', type=str, default=None, help='specify output directory name/path; default is located in the same directory as image_dir with name \'lbcreduce_<date>_<time>\'')
-    parser.add_argument('-n','--notes', type=str, default='', help='notes added to text file included in output dir along with other options used')
-    parser.add_argument('-c','--check_output', type=int, default=1, choices=[0,1,2], help='check output of each reduction step interactively; 0 is no checking, 1 is some checking, 2 is all checking')
+    parser.add_argument('-i','--image_dir', type=str, help='name of directory containing all raw images to be used in analysis; if not running this program in the directory containing image_dir, make sure to include full path name')
+    parser.add_argument('--config', type=str, default='./lbcreduce-config.yml', help='path of the .yml config file ')
+    parser.add_argument('-ext','--extension', type=int, help='extension of FITS file data to be used')
+    parser.add_argument('-o','--overscan', type=bool, help='model, subtract, and trim overscan')
+    parser.add_argument('-z','--zero', type=bool, help='include zero frame subtraction in reduction')
+    parser.add_argument('-d','--dark', type=bool, help='include dark subtraction in reduction')
+    parser.add_argument('-f', '--flat', type=bool, help='include flat-fielding step in reduction')
+    parser.add_argument('-s', '--stack', type=bool, help='stack images for each OBJECT after reduction steps')
+    parser.add_argument('--reduce_objects', type=bool, help='include reduction of object images in image processing; only set to False if you\'re only interested in producing master flats/bias images, etc. or stacking previously processed images')
+    parser.add_argument('--filenames', type=list, help='list of files to include in image reduction; should include any object images, flats, darks, bias images, etc. necessary for reduction')
+    parser.add_argument('--object', type=str, help='OBJECT keyword in header; used when image reduction of only one object is desired')
+    parser.add_argument('--glob_include', type=str, help='Unix-style filename segment used to include files; only necessary if you don\'t want all files in image_dir used (eg. \'lbcb*\'); applied after include_filenames')
+    parser.add_argument('--glob_exclude', type=str, help='Unix-style filename segment used to exclude files; (eg. \'*20191220*\')')
+    parser.add_argument('--overwrite', type=bool, help='overwrite existing directory for output images')
+    parser.add_argument('--out_dir', type=str, help='specify output directory name/path; default is located in the same directory as image_dir with name \'lbcreduce_<date>_<time>\'')
+    parser.add_argument('-n','--notes', type=str, help='notes added to text file included in output dir along with other options used')
+    parser.add_argument('-c','--check_output', type=bool, help='check output of each reduction step before continuing')
     args = parser.parse_args()
 
-    reduce(image_dir=args.image_dir, do_overscan=args.overscan, overscan_model=args.overscan_model, combine_func=args.combine_func, std_type=args.std_type, std=args.std, do_zero=args.zero, do_dark=args.dark, do_flat=args.flat, do_stack=args.stack, filenames=args.include_filenames, glob_include=args.glob_include, glob_exclude=args.glob_exclude, include_attributes=args.include_attributes, exclude_attributes=args.exclude_attributes, overwrite=args.overwrite, out_dir=args.out_dir, notes=args.notes, check_output=args.check_output)
+    options = {
+        'image_dir' : args.image_dir,
+        'ext' : args.extension,
+        'overscan' : args.overscan,
+        'zero' : args.zero,
+        'dark' : args.dark,
+        'flat' : args.flat,
+        'stack' : args.stack,
+        'reduce_objects' : args.reduce_objects,
+        'filenames' : args.filenames,
+        'object' : args.object,
+        'glob_include' : args.glob_include,
+        'glob_exclude' : args.glob_exclude,
+        'overwrite' : args.overwrite,
+        'out_dir' : args.out_dir,
+        'notes' : args.notes,
+        'check_output' : args.check_output
+    }
+
+
+    reduce(options, config_filename=args.config)

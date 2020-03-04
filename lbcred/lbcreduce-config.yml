@@ -1,0 +1,64 @@
+####### LBC Reduce Parameters #######
+
+### Directory options ###
+image_dir : 'test_raw_ims' # Where all the files needed for image reduction are located
+out_dir : 'test_out' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
+
+### Other common options ###
+ext : 1 # FITS file extension of imaging data
+check_output : True # Do you want to check on the image processing steps as they happen or just trust that everything is working out okay?
+notes : '' # These notes will be added to the image-production-details.txt file included in the output directory along with the other options that were used diring image processing
+
+### Image Processing Steps ###
+reduce_objects : True # Always true unless you just want to make master flats/bias images, stack pre-processed images, etc.
+flat : True # Perform flat-fielding
+overscan : True # Subtract overscan from object images
+stack : True # Stack images of like-object files after processing
+zero : True # Perform zero frame subtraction on object files
+bias : True # Perform 2D bias subtraction on flat fields
+dark : False # Perform dark subtraction
+
+### File selection options ###
+filenames : None # List of filenames to be used in image processing. Should include everything from object files to flats to bias images, etc.
+glob_exclude : None # Unix-style filename segment used to include files. Only necessary if you don't want all files in image_dir used (eg. \'lbcb*\'); applied after filenames
+glob_include : None # Unix-style filename segment used to exclude files (eg. \'*20191220*\')
+object : None # Object names you want included in image processing. Should be None if all object files are to be processed. (***Currently only works for ONE object***)
+
+### Image Processing Options ###
+
+# Combine images to make master flats, master bias images, etc.
+# More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.combine.html
+combine_options:
+  method : 'average'
+  weights : None
+  scale : None
+  mem_limit : 16000000000.0
+  clip_extrema : False
+  nlow : 1
+  nhigh : 1
+  minmax_clip : False
+  minmax_clip_min : None
+  minmax_clip_max : None
+  sigma_clip : True
+  sigma_clip_low_thresh : 5
+  sigma_clip_high_thresh : 5
+  sigma_clip_func : np.ma.median
+  sigma_clip_dev_func : astropy.stats.mad_std
+  dtype : None
+  combine_uncertainty_function : None
+
+# Overscan subtract
+# More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
+overscan_options:
+  overscan : None
+  overscan_axis : 1
+  fits_section : None
+  median : False
+  model : None
+  add_keyword : True
+
+# Overscan trim
+# More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.trim_image.html
+trim_options:
+  add_keyword : True
