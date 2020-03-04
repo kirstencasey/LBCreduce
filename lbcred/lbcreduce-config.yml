@@ -6,9 +6,20 @@ out_dir : 'test_out' # Specify desired path of output directory. If None, defaul
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 
 ### Other common options ###
-ext : 1 # FITS file extension of imaging data
+ext : 2 # FITS file extension of imaging data
 check_output : True # Do you want to check on the image processing steps as they happen or just trust that everything is working out okay?
 notes : '' # These notes will be added to the image-production-details.txt file included in the output directory along with the other options that were used diring image processing
+data_units : 'adu'
+
+### Header IMAGETYP Keywords ###
+bias_image_keyword : 'zero'
+object_image_keyword : 'object'
+dark_image_keyword : 'dark'
+flat_image_keyword : 'flat'
+
+### Other Header information ###
+overscan_region : 'BIASSEC'
+science_region : 'TRIMSEC'
 
 ### Image Processing Steps ###
 reduce_objects : True # Always true unless you just want to make master flats/bias images, stack pre-processed images, etc.
@@ -20,10 +31,12 @@ bias : True # Perform 2D bias subtraction on flat fields
 dark : False # Perform dark subtraction
 
 ### File selection options ###
-filenames : None # List of filenames to be used in image processing. Should include everything from object files to flats to bias images, etc.
-glob_exclude : None # Unix-style filename segment used to include files. Only necessary if you don't want all files in image_dir used (eg. \'lbcb*\'); applied after filenames
-glob_include : None # Unix-style filename segment used to exclude files (eg. \'*20191220*\')
-object : None # Object names you want included in image processing. Should be None if all object files are to be processed. (***Currently only works for ONE object***)
+object :  # Object names you want included in image processing. Should be None if all object files are to be processed. (***Currently only works for ONE object***)
+file_selection_options:
+  filenames :  # List of filenames to be used in image processing. Should include everything from object files to flats to bias images, etc.
+  glob_exclude :  # Unix-style filename segment used to include files. Only necessary if you don't want all files in image_dir used (eg. \'lbcb*\'); applied after filenames
+  glob_include :  # Unix-style filename segment used to exclude files (eg. \'*20191220*\')
+  
 
 ### Image Processing Options ###
 
@@ -51,10 +64,9 @@ combine_options:
 # Overscan subtract
 # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
 overscan_options:
-  overscan : None
   overscan_axis : 1
   fits_section : None
-  median : False
+  median : True
   model : None
   add_keyword : True
 

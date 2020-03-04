@@ -10,6 +10,7 @@ import image
 from astropy.stats import sigma_clip, mad_std
 import ccdproc, os, sys, time, shutil, warnings, yaml
 from astropy.utils.exceptions import AstropyUserWarning
+from astropy.nddata import CCDData
 
 def initialize_config(input_options, config_filename):
 	# Open and read config file
@@ -64,29 +65,54 @@ def textfile(initial_config, end_notes, dir_overwritten, final_config = None):
 	print('\nImage processing complete! :)\n')
 	return
 
-def bias(bias_type, options, all_files):
-
-	# Get bias images (imagetyp: 'zero')
-	bias_images = all_files.files_filtered(imagetyp='zero')
+def bias(bias_type, config, all_files):
+	
+	raw_bias_images = all_files.files_filtered(include_path=True, imagetyp=config['bias_image_keyword'])
+	processed_bias_images = []
 
 	# Make 2D bias image
 	if bias_type == '2Dbias':
-		# Trim overscan region
+		# Loop through bias images
+		for bias_im in raw_bias_images:
+			# Get data 
+			data = CCDData.read(bias_im, unit=config['data_units'])
+			
+			# Trim overscan region
+			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])
+			data_t = ccdproc.trim_image(data[xmin:xmax,ymin:ymax], **config['trim_options'])
 
-
-		# Combine images
-		biasimage = ccdproc.combine(bias_images)
-
+			# Save trimmed image
+			out_name = config['out_dir'] + 'midproc/' + bias_im.split('/')[-1].replace('.fits','_T.fits')
+			data_t.write(out_name)
+			processed_bias_images.append(out_name)
+			
 	# Make zero-frame bias image
 	if bias_type == 'zero':
-		# Subtract median (overscan) from all images
+		# Loop through bias images
+		for bias_im in raw_bias_images:
+			# Get data 
+			data = CCDData.read(bias_im, unit=config['data_units'])
 
-		# Trim overscan region
+			# Subtract overscan 
+			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['overscan_region'])
+			data_o = ccdproc.subtract_overscan(data, overscan=data[xmin:xmax,ymin:ymax], **config['overscan_options'])
 
-		# Combine images
-		biasimage = ccdproc.combine(bias_images)
+			# Trim overscan region
+			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])
+			data_ot = ccdproc.trim_image(data_o[xmin:xmax,ymin:ymax], **config['trim_options'])
 
-	return biasimage, options
+			# Save overscan subtracted, trimmed image
+			out_name = config['out_dir'] + 'midproc/' + bias_im.split('/')[-1].replace('.fits','_OT.fits')
+			data_ot.write(out_name)
+			processed_bias_images.append(out_name)
+
+	# Combine images to make master bias
+	master_name = config['out_dir'] + 'midproc/masterbias_' + bias_type + '.fits' 
+	masterbias = ccdproc.combine(processed_bias_images, output_file=master_name, **config['combine_options'])
+
+	# Get feedback on master bias
+
+	return masterbias, config
 
 # Overscan and trim
 def overscan(options, all_files):

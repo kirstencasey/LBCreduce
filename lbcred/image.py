@@ -14,6 +14,7 @@ import sys
 
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
+keys = ['imagetyp', 'filter', 'object']
 
 # Get images to do the reduction
 def get_images(config):
@@ -44,21 +45,25 @@ def get_images(config):
 	options : dict
 		Dictionary containing all the same information as the input dictionary but with any options that were changed from user interaction updated
 	'''
+	all_images = ImageFileCollection(config['image_dir'], ext=config['ext'], keywords=keys, **config['file_selection_options'])
 
 	# Get necessary files
-	all_images = ImageFileCollection(config['image_dir'], filenames=config['filenames'], glob_include=config['glob_include'], glob_exclude=config['glob_exclude'], ext=config['ext'])
+	if config['object'] != None:
+		all_files = all_images.files_filtered(object=config['object'])
+		all_files += all_images.files_filtered(imagetyp='dark')
+		all_files += all_images.files_filtered(imagetyp='flat')
+		all_files += all_images.files_filtered(imagetyp='zero')
+		all_images = ImageFileCollection(config['image_dir'], filenames=all_files, ext=config['ext'], keywords=keys)
 
-	if config['object'] != 'None':
-		object_files = all_images.files_filtered(object=config['object'])
-		dark_files = all_images.files_filtered(object='dark')
-		flat_files = all_images.files_filtered(object='flat')
-		zero_files = all_images.files_filtered(object='zero')
-		all_files = object_files + dark_files + flat_files + zero_files
-		all_images = ImageFileCollection(config['image_dir'], filenames=all_files, ext=config['ext'])
+
+	if type(all_images.summary) == type(None):
+		warnings.warn('No files found in image_dir!',AstropyUserWarning)	########## WORK ON THIS - for when no files are found ###########
+		sys.exit('lbcreduce stopped.')
+
 
 	return all_images, config
 
-def check_files(files, options):
+def check_files(files, config):
 	'''
 	This function checks to make sure all image types needed to do the image analysis are available
 
@@ -95,64 +100,81 @@ def check_files(files, options):
 		Dictionary containing all the same information as the input dictionary but with any options that were changed from user interaction updated
 	'''
 	# Get list of all image types available
-	options_changed = False
+	config_changed = False
 	imagetypes = files.values('imagetyp',unique=True)
 
 	# Check zero frames
-	if options['do_zero']:
+	if config['zero']:
 		if 'zero' not in imagetypes:
 			warnings.warn('No zero/bias frames detected in ImageFileCollection!',AstropyUserWarning)
 			if check_output != 0:
 				response = interactive.get_input('Change the file selection criteria before continuing? [y/n]: ')
 				if response in affirmative:
 					# Ask for new
-					options = change_file_selection(options, zeros=True)
-					options_changed = True
+					config = change_file_selection(config, zeros=True)
+					config_changed = True
 			else:
 				sys.exit('lbcreduce stopped.')
 	# Check for darks
-	if options['do_dark']:
+	if config['dark']:
 		if 'dark' not in imagetypes:
 			warnings.warn('No dark frames detected in ImageFileCollection!',AstropyUserWarning)
 			if check_output != 0:
 				response = interactive.get_input('Change the file selection criteria before continuing? [y/n]: ')
 				if response in affirmative:
 					# Ask for new
-					options = change_file_selection(options, darks=True)
-					options_changed = True
+					config = change_file_selection(options, darks=True)
+					config_changed = True
 			else:
 				sys.exit('lbcreduce stopped.')
 	# Check for flats
-	if options['do_flat']:
+	if config['flat']:
 		if 'flat' not in imagetypes:
 			warnings.warn('No flat fields detected in ImageFileCollection!',AstropyUserWarning)
 			if check_output != 0:
 				response = interactive.get_input('Change the file selection criteria before continuing? [y/n]: ')
 				if response in affirmative:
 					# Ask for new
-					options = change_file_selection(options, flats=True)
-					options_changed = True
+					config = change_file_selection(options, flats=True)
+					config_changed = True
 			else:
 				sys.exit('lbcreduce stopped.')
 
 	# Check for object files
-	if options['reduce_objects']:
+	if config['reduce_objects']:
 		if 'object' not in imagetypes:
 			warnings.warn('No object files detected in ImageFileCollection!',AstropyUserWarning)
 			if check_output != 0:
 				response = interactive.get_input('Change the file selection criteria before continuing? [y/n]: ')
 				if response in affirmative:
 					# Ask for new
-					options = change_file_selection(options, objects =True)
-					options_changed = True
+					config = change_file_selection(options, objects =True)
+					config_changed = True
 			else:
 				sys.exit('lbcreduce stopped.')
 
 	# Get new files from changed options
-	if options_changed:
-		all_images, options = get_images(options)
+	if config_changed:
+		all_images, config = get_images(config)
 
-	return all_images, options
+	return all_images, config
+
+def get_ccd_section(image_header, section_name):
+	'''
+	This function takes a string in the format, '[xmin:xmax,ymin:ymax]', 
+	and converts the appropriate str-type FITS indices to int-type python indices
+	'''
+	section = image_header[section_name]
+	
+	xmin = int(section.split('[')[1].split(':')[0]) - 1
+	xmax = int(section.split(':')[1].split(',')[0])
+	ymin = int(section.split(',')[1].split(':')[0]) - 1
+	ymax = int(section.split(':')[-1].split(']')[0])
+
+	if section_name == 'BIASSEC':	############ DO THIS BETTER!!!!!! ############
+		xmin += 10
+	
+	return ymin, ymax, xmin, xmax
 
 # Calculate given image stats
 def calc_stats(images, sigma_clip=True, sigma=3.0, maxiters=5):

@@ -4,6 +4,7 @@ import os, time, shutil, warnings
 
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
+keys = ['imagetyp']
 
 def reduce(options, config_filename):
 
@@ -14,30 +15,30 @@ def reduce(options, config_filename):
     config, dir_overwritten = interactive.initialize_directories(initial_config)
 
     # Get raw images
-    all_files, config = image.get_images(config)
-    all_files, config= image.check_files(all_files, config)
-    '''
+    raw_files, config = image.get_images(config)
+    #raw_files, config= image.check_files(raw_files, config)		###### Doesn't work when nothing in config is changed
+
     # Create master bias images (2D bias and zero frame)
     if config['zero'] or config['flat']:
-        masterbias, options_now = tools.bias('2Dbias', options_now, all_files) # Needed for flat fields
-        zeroframe, options_now = tools.bias('zero', options_now, all_files)
-
+        masterbias_2D, config = tools.bias('2Dbias', config, raw_files) # Needed for flat fields
+        masterbias_zero, config = tools.bias('zero', config, raw_files)
+    '''
     # Calibrate dark frames
     if config['dark']:
-        options_now = tools.dark(options_now, all_files)
+        options_now = tools.dark(options_now, raw_files)
 
     # Check counts, calibrate flat fields
     if config['flat']:
-        options_now = tools.flat(options_now, all_files)
+        options_now = tools.flat(options_now, raw_files)
 
     # Process images
     if config['reduce_objects']:
-    options_now = tools.process(options_now, all_files)
+    options_now = tools.process(options_now, raw_files)
 
     # Stack images
     if config['stack']:
-        options_now = tools.stack(options_now, all_files)
-    '''
+        options_now = tools.stack(options_now, raw_files)
+
     # Ask for final notes (if check_output is not 0)
     if config['check_output']:
         response = input('Are there any other notes you would like to add to the output textfile? [y/n]: ')
@@ -45,7 +46,7 @@ def reduce(options, config_filename):
             end_notes = input('Notes to add: ')
         else:
             end_notes = ''
-
+    '''
     # Make textfile specifying options used
     if config != initial_config:
         final_config = config
