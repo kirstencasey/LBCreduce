@@ -11,6 +11,8 @@ from astropy.stats import sigma_clip, mad_std
 import ccdproc, os, sys, time, shutil, warnings, yaml
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.nddata import CCDData
+from astropy.io import fits
+from astropy.table import Column
 
 def initialize_config(input_options, config_filename):
 	# Open and read config file
@@ -24,7 +26,7 @@ def initialize_config(input_options, config_filename):
 
 	return config
 
-def textfile(initial_config, end_notes, dir_overwritten, final_config = None):
+def textfile(config, end_notes, dir_overwritten):
 	'''
 	This function creates a textfile in the directory containing the processed images which details all the decisions made during processing
 
@@ -48,16 +50,12 @@ def textfile(initial_config, end_notes, dir_overwritten, final_config = None):
 	'''
 
 	# Make text file with notes
-	if final_config != None:
-		out_dir = final_config['out_dir']
-		image_dir = final_config['image_dir']
-	else:
-		out_dir = initial_config['out_dir']
-		image_dir = initial_config['image_dir']
+	out_dir = config['out_dir']
+	image_dir = config['image_dir']
 	file = open(out_dir+'image-production-details.txt','w')
 	datetime = time.strftime('%Y-%m-%d at %H:%M:%S',time.gmtime())
 	lines = [f'This file describes the options used to process the images in {image_dir}. \nThe image processing was performed by lbcreduce on {datetime}.',
-			'\n\nNotes input by user at runtime:\n', initial_config['notes'], '\n\nNotes input by user after all image processing steps:\n', end_notes]
+			'\n\nNotes input by user at runtime:\n', config['notes'], '\n\nNotes input by user after all image processing steps:\n', end_notes]
 
 	# Make sure inputs are what were actually used if the user changed anything at all while running the program interactively
 	file.writelines(lines)
@@ -65,35 +63,38 @@ def textfile(initial_config, end_notes, dir_overwritten, final_config = None):
 	print('\nImage processing complete! :)\n')
 	return
 
-def bias(bias_type, config, all_files):
-	
-	raw_bias_images = all_files.files_filtered(include_path=True, imagetyp=config['bias_image_keyword'])
-	processed_bias_images = []
+def bias(bias_type, config, file_info):
+
+	raw_bias_info = file_info[np.where(file_info['imagetyp']==config['bias_image_keyword'])]
+	processed_bias_info = raw_bias_info.copy()
+	out_names = []
 
 	# Make 2D bias image
 	if bias_type == '2Dbias':
 		# Loop through bias images
-		for bias_im in raw_bias_images:
-			# Get data 
-			data = CCDData.read(bias_im, unit=config['data_units'])
-			
+		for bias_im in raw_bias_info:
+			# Get data
+			data = CCDData.read(config['out_dir'] + 'midproc/' +  bias_im['filename'], unit=config['data_units'], hdu=config['ext'])
+
 			# Trim overscan region
 			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])
-			data_t = ccdproc.trim_image(data[xmin:xmax,ymin:ymax], **config['trim_options'])
+			data_trimmed = ccdproc.trim_image(data[xmin:xmax,ymin:ymax], **config['trim_options'])
 
 			# Save trimmed image
-			out_name = config['out_dir'] + 'midproc/' + bias_im.split('/')[-1].replace('.fits','_T.fits')
-			data_t.write(out_name)
-			processed_bias_images.append(out_name)
-			
+			out_names.append(config['out_dir'] + 'midproc/' + bias_im['filename'].replace('.fits','_T.fits'))
+			primary_hdu = fits.open(config['out_dir'] + 'midproc/' +  bias_im['filename'])[0]
+			image_hdu = fits.ImageHDU(data=data_trimmed,header=data_trimmed.header)
+			fits.HDUList([primary_hdu,image_hdu]).writeto(out_names[-1])
+
+
 	# Make zero-frame bias image
 	if bias_type == 'zero':
 		# Loop through bias images
-		for bias_im in raw_bias_images:
-			# Get data 
-			data = CCDData.read(bias_im, unit=config['data_units'])
+		for bias_im in raw_bias_info:
+			# Get data
+			data = CCDData.read(config['out_dir'] + 'midproc/' +  bias_im['filename'], unit=config['data_units'], hdu=config['ext'])
 
-			# Subtract overscan 
+			# Subtract overscan
 			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['overscan_region'])
 			data_o = ccdproc.subtract_overscan(data, overscan=data[xmin:xmax,ymin:ymax], **config['overscan_options'])
 
@@ -102,20 +103,33 @@ def bias(bias_type, config, all_files):
 			data_ot = ccdproc.trim_image(data_o[xmin:xmax,ymin:ymax], **config['trim_options'])
 
 			# Save overscan subtracted, trimmed image
-			out_name = config['out_dir'] + 'midproc/' + bias_im.split('/')[-1].replace('.fits','_OT.fits')
-			data_ot.write(out_name)
-			processed_bias_images.append(out_name)
+			out_names.append(config['out_dir'] + 'midproc/' + bias_im['filename'].replace('.fits','_OT.fits'))
+			primary_hdu = fits.open(config['out_dir'] + 'midproc/' +   bias_im['filename'])[0]
+			image_hdu = fits.ImageHDU(data=data_ot,header=data_ot.header)
+			fits.HDUList([primary_hdu,image_hdu]).writeto(out_names[-1])
+
+	processed_bias_info['filename'] = Column(data=out_names, name='filename')
 
 	# Combine images to make master bias
-	master_name = config['out_dir'] + 'midproc/masterbias_' + bias_type + '.fits' 
-	masterbias = ccdproc.combine(processed_bias_images, output_file=master_name, **config['combine_options'])
+	for chip in ['-chip1','-chip2','-chip3','-chip4']:
+		master_name = config['out_dir'] + 'midproc/masterbias_' + bias_type + chip
+
+		# Get correct chip
+		mask = [idx for idx,fi in enumerate(processed_bias_info['filename']) if chip in fi]
+		chip_info = processed_bias_info[mask]
+		chip_info_R = chip_info[np.where(chip_info['instrument']==config['lbc_red'])]
+		chip_info_B = chip_info[np.where(chip_info['instrument']==config['lbc_blue'])]
+
+		# Sort by instrument
+		masterbias_R = ccdproc.combine(chip_info_R['filename'], output_file=master_name+'_R.fits', unit=config['data_units'], **config['combine_options'])
+		masterbias_B = ccdproc.combine(chip_info_B['filename'], output_file=master_name+'_B.fits', unit=config['data_units'], **config['combine_options'])
 
 	# Get feedback on master bias
 
-	return masterbias, config
+	return
 
 # Overscan and trim
-def overscan(options, all_files):
+def model_overscan(options, file_info):
 	'''
 
 	'''
@@ -131,43 +145,78 @@ def overscan(options, all_files):
 	return
 
 # Flat fielding
-def flat(options, all_files):
+def flat(config, file_info):
 	'''
 	'''
-	# Get flats (image.get_images)
+	# Get flats
+	raw_flats_info = file_info[np.where(file_info['imagetyp']==config['flat_image_keyword'])]
+	out_names = []
 
-	# Loop through files:
+	# Examine flatfield counts - throw out flats with bad counts
+	processed_flats_info = image.check_flat_counts(raw_flats_info, config)
 
-		#
-	return options
-# Combine calibrated images
-def combine(options, all_files):
-	'''
-	'''
-	# Combine calibrated bias images
+	# Loop through files to calibrate flats (subtract bias, trim overscan):
+	for flat_im in raw_flats_info:
+		# Get data
+		data = CCDData.read(config['out_dir'] + 'midproc/' +  flat_im['filename'], unit=config['data_units'], hdu=config['ext'])
 
-	# Or, combine calibrated flats
+		# Trim overscan region
+		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])
+		data_t = ccdproc.trim_image(data[xmin:xmax,ymin:ymax], **config['trim_options'])
 
-		# Rescale individual flats
+		# Subtract 2D bias image
+		if flat_im['instrument'] == config['lbc_red']:
+			inst_color = '_R'
+		else:
+			inst_color = '_B'
+		chip = '-' + flat_im['filename'].split('-')[-1].split('.fits')[0]
 
-		# Combine flats
-	return options
+		bias_name = config['out_dir'] + 'midproc/' +  'masterbias_2Dbias' + chip + inst_color + '.fits'
+		bias2D = CCDData.read(bias_name, unit=config['data_units'])
+		data_ot = CCDData.subtract(data_t, bias2D)
+		data_ot.meta = data_t.meta
+
+		# Save calibrated flat
+		out_names.append(config['out_dir'] + 'midproc/' + flat_im['filename'].replace('.fits','_OT.fits'))
+		primary_hdu = fits.open(config['out_dir'] + 'midproc/' +   flat_im['filename'])[0]
+		image_hdu = fits.ImageHDU(data=data_ot,header=data_ot.header)
+		fits.HDUList([primary_hdu,image_hdu]).writeto(out_names[-1])
+
+	processed_flats_info['filename'] = Column(data=out_names, name='filename')
+
+	# Make master flat for each filter
+	filts = np.unique(processed_flats_info['filter'])
+
+	for filt in filts:
+		flats_to_combine = processed_flats_info['filename'][np.where(processed_flats_info['filter']==filt)].copy()
+		for chip in ['-chip1','-chip2','-chip3','-chip4']:
+			mask = [idx for idx,fi in enumerate(flats_to_combine) if chip in fi]
+			chip_info = flats_to_combine[mask]
+			master_name = config['out_dir'] + 'midproc/masterflat' + chip + '_' + filt + '.fits'
+			masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **config['combine_options'])
+
+	# Get feedback on master flats
+
+	return
+
+
 # Calibrate dark frames
-def dark(options, all_files):
+def dark(options, file_info):
 	'''
 	'''
-	return options
+	return
 
 # Process images
-def process(options, all_files):
+def process(options, file_info):
 
 	# Do stuff
 
-	return options
+
+	return
 
 # Stacking
 def stack(options, all_files):
 	'''
 	Note: talk to Chris and Johnny about this
 	'''
-	return options
+	return 

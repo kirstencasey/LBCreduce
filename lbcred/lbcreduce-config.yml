@@ -6,7 +6,7 @@ out_dir : 'test_out' # Specify desired path of output directory. If None, defaul
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 
 ### Other common options ###
-ext : 2 # FITS file extension of imaging data
+ext : 1 # FITS file extension of imaging data
 check_output : True # Do you want to check on the image processing steps as they happen or just trust that everything is working out okay?
 notes : '' # These notes will be added to the image-production-details.txt file included in the output directory along with the other options that were used diring image processing
 data_units : 'adu'
@@ -20,6 +20,8 @@ flat_image_keyword : 'flat'
 ### Other Header information ###
 overscan_region : 'BIASSEC'
 science_region : 'TRIMSEC'
+lbc_red : 'LBC-RED'
+lbc_blue : 'LBC_BLUE'
 
 ### Image Processing Steps ###
 reduce_objects : True # Always true unless you just want to make master flats/bias images, stack pre-processed images, etc.
@@ -31,12 +33,11 @@ bias : True # Perform 2D bias subtraction on flat fields
 dark : False # Perform dark subtraction
 
 ### File selection options ###
-object :  # Object names you want included in image processing. Should be None if all object files are to be processed. (***Currently only works for ONE object***)
-file_selection_options:
-  filenames :  # List of filenames to be used in image processing. Should include everything from object files to flats to bias images, etc.
-  glob_exclude :  # Unix-style filename segment used to include files. Only necessary if you don't want all files in image_dir used (eg. \'lbcb*\'); applied after filenames
-  glob_include :  # Unix-style filename segment used to exclude files (eg. \'*20191220*\')
-  
+object :  # Object names you want included in image processing (excludes all others). OBJECT keyword in object image headers. (***Currently only works for ONE object***)
+propid : # Proposal ID you want included in image processing (excludes all others). PROPID keyword in object image headers.(***Currently only works for ONE propid***)
+glob_include : '*.fits' # Unix-style filename segment used to include files (eg. '*20191220*')
+exclude :  # Filename segment (NOT UNIX-STYLE) used to exclude files (eg. '_OT.fits'). NOTE THIS IS DIFFERENT FROM THE UNIX-STYLE glob_include!! Do NOT add '*'s to the string to be excluded.
+
 
 ### Image Processing Options ###
 
@@ -44,30 +45,30 @@ file_selection_options:
 # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.combine.html
 combine_options:
   method : 'average'
-  weights : None
-  scale : None
+  weights :
+  scale :
   mem_limit : 16000000000.0
   clip_extrema : False
   nlow : 1
   nhigh : 1
   minmax_clip : False
-  minmax_clip_min : None
-  minmax_clip_max : None
+  minmax_clip_min :
+  minmax_clip_max :
   sigma_clip : True
-  sigma_clip_low_thresh : 5
-  sigma_clip_high_thresh : 5
-  sigma_clip_func : np.ma.median
-  sigma_clip_dev_func : astropy.stats.mad_std
-  dtype : None
-  combine_uncertainty_function : None
+  sigma_clip_low_thresh : 3
+  sigma_clip_high_thresh : 3
+  sigma_clip_func : 'median' # Options: median, mean
+  sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
+  dtype :
+  combine_uncertainty_function :
 
 # Overscan subtract
 # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
 overscan_options:
   overscan_axis : 1
-  fits_section : None
+  fits_section :
   median : True
-  model : None
+  model :
   add_keyword : True
 
 # Overscan trim

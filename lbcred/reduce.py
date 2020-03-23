@@ -5,56 +5,62 @@ import os, time, shutil, warnings
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
 keys = ['imagetyp']
+#warnings.simplefilter('ignore', FITSFixedWarning)
 
 def reduce(options, config_filename):
 
     # Read configuration file - NOTE THAT THIS FUNC ASSUMES DEFAULT OPTIONS FROM COMMAND LINE ARE None
+    print('Getting ready...')
     initial_config = tools.initialize_config(options, config_filename) # Overwrite anything in the config file that was supplied via the command line
 
     # Do directory stuff
     config, dir_overwritten = interactive.initialize_directories(initial_config)
 
     # Get raw images
-    raw_files, config = image.get_images(config)
-    #raw_files, config= image.check_files(raw_files, config)		###### Doesn't work when nothing in config is changed
+    print('Gathering image information...')
+    image_info = image.get_image_info(config)
+    image.check_files(image_info, config)
+    image_info = image.separate_chips(image_info, config)
 
     # Create master bias images (2D bias and zero frame)
     if config['zero'] or config['flat']:
-        masterbias_2D, config = tools.bias('2Dbias', config, raw_files) # Needed for flat fields
-        masterbias_zero, config = tools.bias('zero', config, raw_files)
+        print('Calibrating bias images...')
+        tools.bias('2Dbias', config, image_info) # Needed for flat fields
+        tools.bias('zero', config, image_info)   #### MAKE THESE MORE EFFICIENT (COMBINE THEM WHERE POSSIBLE) #####
     '''
     # Calibrate dark frames
     if config['dark']:
-        options_now = tools.dark(options_now, raw_files)
-
+        print('Calibrating dark frames...')
+        options_now = tools.dark(options_now, image_info)
+    '''
     # Check counts, calibrate flat fields
     if config['flat']:
-        options_now = tools.flat(options_now, raw_files)
+        print('Calibrating flats...')
+        tools.flat(config, image_info)
 
     # Process images
     if config['reduce_objects']:
-    options_now = tools.process(options_now, raw_files)
-
+        print('Processing science images...')
+        tools.process(config, image_info)
+    '''
     # Stack images
     if config['stack']:
-        options_now = tools.stack(options_now, raw_files)
-
+        print('Stacking science images...')
+        tools.stack(config, image_info)
+    '''
     # Ask for final notes (if check_output is not 0)
     if config['check_output']:
+        # TEMP:
+        end_notes = ''
+        '''
         response = input('Are there any other notes you would like to add to the output textfile? [y/n]: ')
         if response in affirmative:
             end_notes = input('Notes to add: ')
         else:
             end_notes = ''
-    '''
-    # Make textfile specifying options used
-    if config != initial_config:
-        final_config = config
-    else:
-        final_config = None
-
+        '''
     # Make textfile
-    tools.textfile(initial_config, end_notes, dir_overwritten, final_config)
+    tools.textfile(config, end_notes, dir_overwritten)
 
     # End
     return
@@ -75,8 +81,9 @@ if __name__ == '__main__':
     parser.add_argument('--reduce_objects', type=bool, help='include reduction of object images in image processing; only set to False if you\'re only interested in producing master flats/bias images, etc. or stacking previously processed images')
     parser.add_argument('--filenames', type=list, help='list of files to include in image reduction; should include any object images, flats, darks, bias images, etc. necessary for reduction')
     parser.add_argument('--object', type=str, help='OBJECT keyword in header; used when image reduction of only one object is desired')
+    parser.add_argument('--propid', type=str, help='PROPID keyword in header; used when image reduction of only one propid is desired')
     parser.add_argument('--glob_include', type=str, help='Unix-style filename segment used to include files; only necessary if you don\'t want all files in image_dir used (eg. \'lbcb*\'); applied after include_filenames')
-    parser.add_argument('--glob_exclude', type=str, help='Unix-style filename segment used to exclude files; (eg. \'*20191220*\')')
+    parser.add_argument('--exclude', type=str, help='Unix-style filename segment used to exclude files; (eg. \'*20191220*\')')
     parser.add_argument('--overwrite', type=bool, help='overwrite existing directory for output images')
     parser.add_argument('--out_dir', type=str, help='specify output directory name/path; default is located in the same directory as image_dir with name \'lbcreduce_<date>_<time>\'')
     parser.add_argument('-n','--notes', type=str, help='notes added to text file included in output dir along with other options used')
@@ -94,8 +101,9 @@ if __name__ == '__main__':
         'reduce_objects' : args.reduce_objects,
         'filenames' : args.filenames,
         'object' : args.object,
+        'propid' : args.propid,
         'glob_include' : args.glob_include,
-        'glob_exclude' : args.glob_exclude,
+        'exclude' : args.exclude,
         'overwrite' : args.overwrite,
         'out_dir' : args.out_dir,
         'notes' : args.notes,

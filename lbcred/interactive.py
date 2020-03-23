@@ -5,9 +5,15 @@ Functions for allowing user to check output of processing pipeline:
 	- Stacking images
 '''
 import image
-from astropy.stats import sigma_clip, mad_std
+from astropy.stats import mad_std
+import numpy as np
 import ccdproc, os, sys, time, shutil, warnings, yaml
 from astropy.utils.exceptions import AstropyUserWarning
+
+combine_arg_dict = {'median': np.ma.median,
+					'mean' : np.ma.mean,
+					'std' : np.ma.std,
+					'mad_std' : mad_std}
 
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
@@ -42,13 +48,13 @@ def get_input(question, acceptable_responses=default_acceptable, anything_accept
 
 	return response
 
-def initialize_directories(options, check_in_dir=True, check_out_dir=True):
+def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 	'''
 	This function checks to make sure input and output directories are valid based on user input.
 
 	Parameters
 	----------
-	options : dict
+	config : dict
 		Dictionary containing information about how directories should be initialized. Necessary items in dictionary are:
 			- image_dir : str
 				Directory where raw images are saved
@@ -68,10 +74,10 @@ def initialize_directories(options, check_in_dir=True, check_out_dir=True):
 		Information on whether it was necessary to overwrite an existing directory
 	'''
 	# Get necessary information from options
-	image_dir = options['image_dir']
-	out_dir = options['out_dir']
-	overwrite = options['overwrite']
-	check_output = options['check_output']
+	image_dir = config['image_dir']
+	out_dir = config['out_dir']
+	overwrite = config['overwrite']
+	check_output = config['check_output']
 
 	# Check image_dir exists
 	image_dir_exists = os.path.isdir(image_dir)
@@ -92,17 +98,11 @@ def initialize_directories(options, check_in_dir=True, check_out_dir=True):
 	dir_overwritten = False
 
 	if directory_exists and overwrite:
-		warnings.warn('The output directory already exists and will be overwritten.',AstropyUserWarning)
-		if check_output != 0:
-			response = input('Are you sure you want to proceed? [y/n]: ')
-			if response in affirmative:
-				shutil.rmtree(out_dir)
-				os.mkdir(out_dir)
-				dir_overwritten = True
-			else:
-				print('Output directory already exists and lbcreduce was not given permission to overwrite it.')
-				overwrite = False
-				sys.exit('lbcreduce stopped.')
+		warnings.warn('The output directory already exists and will be overwritten.', AstropyUserWarning)
+		shutil.rmtree(out_dir)
+		os.mkdir(out_dir)
+		dir_overwritten = True
+
 	elif directory_exists and not overwrite:
 		print('Error: Output directory already exists and lbcreduce was not given permission to overwrite it.')
 		print('Either specify a different out_dir or set overwrite to True.')
@@ -113,94 +113,10 @@ def initialize_directories(options, check_in_dir=True, check_out_dir=True):
 
 	os.mkdir(out_dir+'midproc/')
 
-	# Update options
-	options['image_dir'] = image_dir
-	options['out_dir'] = out_dir
-	options['overwrite'] = overwrite
-	options['check_output'] = check_output
+	# Update options			################## DO THIS BETTER - IN A DIFFERENT FUNCTION ####################
+	config['image_dir'] = image_dir
+	config['out_dir'] = out_dir
+	config['combine_options']['sigma_clip_func'] = combine_arg_dict[config['combine_options']['sigma_clip_func']]
+	config['combine_options']['sigma_clip_dev_func'] = combine_arg_dict[config['combine_options']['sigma_clip_dev_func']]
 
-	return options, dir_overwritten
-
-def change_file_selection(options, zeros=False, darks=False, flats=False, objects=False, start_over=False):
-	'''
-	This function takes the reduction options as an input and asks the user for input
-	about which options should be changed to affect the input files for reduction.
-
-	Parameters
-	----------
-	options : dict
-		Dictionary containing information about data reduction options, including how to select files for reduction.
-		Necessary items in dictionary are:
-			- image_dir : str
-				Directory where raw images are saved
-			- include_filenames : list
-				List of filenames to be included in image processing (should include any necessary object images, flats, darks, zero frames, etc.)
-			- do_zero : bool
-				If True, check for bias images
-			- do_dark : bool
-				If True, check for dark frames
-			- do_flat : bool
-				If True, check for flat fields
-			- object : str
-				OBJECT keyword in FITS header; filters given files to include only those with given keyword as well as any flats, darks, zero frames, etc.
-			- glob_include : str
-				Unix-style filename segment used to include files (eg. \'lbcb*\')
-			- glob_exclude : str
-				Unix-style filename segment used to exclude files (eg. \'lbcr*\')
-			- check_output : int
-				Option specifying how much interaction with the program the user desires (0 is no interaction, 1 is some interaction, 2 is all interaction)
-
-	zeros : bool
-		A boolean argument letting the function know that only the zero frames need be changed
-
-	darks : bool
-		A boolean argument letting the function know that only the dark frames need be changed
-
-	flats : bool
-		A boolean argument letting the function know that only the flat fields need be changed
-
-	objects : bool
-		A boolean argument letting the function know that only the object files need be changed
-	'''
-	# Select all new file collection
-	if start_over:
-		print('The available options that affect which files are selected for processing are: image_dir, include_filenames, glob_include, glob_exclude, and object.')
-		# Check for input directory
-		change_image_dir = get_input('Would you like to change image_dir (the directory where lbcreduce looks for images to process)? [y/n]: ')
-		if change_image_dir:
-			options['image_dir'] = get_input('Enter new image_dir: ', is_dir=True)
-		# Check for list of files
-		change_filelist = get_input('Would you like to specify a list of files to be included in image reduction (applied before glob_include; recommended only for a short list of files)? [y/n]: ')
-		if change_filelist:
-			options['include_filenames'] = get_input('Enter a list of filenames to be included in reduction: ')
-		# Check for glob include/exclude
-		change_glob_include = get_input('Would you like to specify a new glob_include (a Unix-style filename segment used to select included files)? [y/n]: ')
-		if change_glob_include:
-			options['glob_include'] = get_input('Enter new glob_include: ', anything_acceptable=True)
-		change_glob_exclude = get_input('Would you like to specify a new glob_exclude (a Unix-style filename segment used to select excluded files)? [y/n]: ')
-		if change_glob_exclude:
-			options['glob_exclude'] = get_input('Enter new glob_exclude: ', anything_acceptable=True)
-		# Check for specific object
-		change_object = get_input('Would you like to specify a single object for image reduction? [y/n]: ')
-		if change_object:
-			options['object'] = get_input('Enter the object name as it appears in the OBJECT keyword of the header: ', anything_acceptable=True)
-
-	else:
-		if zeros:
-			print('Okay, let\'s look for some zero frames to include in the analysis.')
-			######################################################## DO STUFF HERE STILL ########################################################
-
-		if darks:
-			print('Okay, let\'s look for some dark frames to include in the analysis.')
-			######################################################## DO STUFF HERE STILL ########################################################
-
-		if flats:
-			print('Okay, let\'s look for some flat fields to include in the analysis.')
-			######################################################## DO STUFF HERE STILL ########################################################
-
-		if objects:
-			print('Okay, let\'s look for some objects to include in the analysis.')
-			######################################################## DO STUFF HERE STILL ########################################################
-
-
-	return options
+	return config, dir_overwritten
