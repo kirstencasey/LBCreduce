@@ -1,6 +1,9 @@
 import tools, interactive, image
 import numpy as np
 import os, time, shutil, warnings
+from astropy import log
+
+log.setLevel('ERROR')
 
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
@@ -27,12 +30,12 @@ def reduce(options, config_filename):
         print('Calibrating bias images...')
         tools.bias('2Dbias', config, image_info) # Needed for flat fields
         tools.bias('zero', config, image_info)   #### MAKE THESE MORE EFFICIENT (COMBINE THEM WHERE POSSIBLE) #####
-    '''
+
     # Calibrate dark frames
     if config['dark']:
         print('Calibrating dark frames...')
-        options_now = tools.dark(options_now, image_info)
-    '''
+        tools.dark(config, image_info)
+
     # Check counts, calibrate flat fields
     if config['flat']:
         print('Calibrating flats...')
@@ -42,12 +45,12 @@ def reduce(options, config_filename):
     if config['reduce_objects']:
         print('Processing science images...')
         tools.process(config, image_info)
-    '''
+
     # Stack images
     if config['stack']:
         print('Stacking science images...')
         tools.stack(config, image_info)
-    '''
+
     # Ask for final notes (if check_output is not 0)
     if config['check_output']:
         # TEMP:

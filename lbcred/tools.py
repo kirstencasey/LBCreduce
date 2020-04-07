@@ -14,6 +14,7 @@ from astropy.nddata import CCDData
 from astropy.io import fits
 from astropy.table import Column
 
+
 def initialize_config(input_options, config_filename):
 	# Open and read config file
 	with open(config_filename, 'r') as filename:
@@ -167,7 +168,7 @@ def flat(config, file_info):
 		# Subtract 2D bias image
 		if flat_im['instrument'] == config['lbc_red']:
 			inst_color = '_R'
-		else:
+		elif flat_im['instrument'] == config['lbc_blue']:
 			inst_color = '_B'
 		chip = '-' + flat_im['filename'].split('-')[-1].split('.fits')[0]
 
@@ -201,22 +202,69 @@ def flat(config, file_info):
 
 
 # Calibrate dark frames
-def dark(options, file_info):
+def dark(config, file_info):
 	'''
 	'''
 	return
 
 # Process images
-def process(options, file_info):
+def process(config, file_info):
 
-	# Do stuff
+	# Get images
+	sci_ims = file_info[np.where(file_info['imagetyp']==config['object_image_keyword'])]
+	out_dir  = config['out_dir']
+	if config['stack']:
+		out_dir += 'midproc/'
 
+	# Loop through images
+	for im in sci_ims:
+		# Get image data
+		data = CCDData.read(config['out_dir'] + 'midproc/' +  im['filename'], unit=config['data_units'], hdu=config['ext'])
+		proc_name = out_dir + im['filename'].split('.fits')[-1] + '_'
+
+		# Subtract overscan, trim
+		if config['overscan']:
+			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['overscan_region'])
+			data = ccdproc.subtract_overscan(data, overscan=data[xmin:xmax,ymin:ymax], **config['overscan_options'])
+			xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])
+			data = ccdproc.trim_image(data[xmin:xmax,ymin:ymax], **config['trim_options'])
+			proc_name += 'OT'
+
+		# Subtract zero frame
+		if config['zero']:
+			data_temp = data
+			# Find best master zero frame
+			zero = image.find_best_masterframe('zero', im, config)
+			data = CCDData.subtract(data_temp, zero)
+			data.meta = data_temp.meta
+			proc_name += 'Z'
+
+		# Subtract dark frame
+		if config['dark']:
+			data_temp = data
+			# Find best master dark frame
+			dark = image.find_best_masterframe('dark', im, config)
+			data = CCDData.subtract(data_temp, dark)
+			data.meta = data_temp.meta
+			proc_name += 'D'
+
+		# Find the best master flat frame, divide
+		if config['flat']:
+			data_temp = data
+			flat = image.find_best_masterframe('flat', im, config)
+			data = CCDData.divide(data_temp, flat)
+			data.meta = data_temp.meta
+			proc_name += 'F'
+		print(proc_name + '.fits')
+		# Save image
+		print('PROC_NAME: ', proc_name + '.fits')
+		CCDData.write(data, proc_name + '.fits')
 
 	return
 
 # Stacking
-def stack(options, all_files):
+def stack(config, file_info):
 	'''
 	Note: talk to Chris and Johnny about this
 	'''
-	return 
+	return

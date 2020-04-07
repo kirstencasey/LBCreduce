@@ -10,8 +10,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy import stats
 from astropy.utils.exceptions import AstropyUserWarning
+from astropy.nddata import CCDData
 import interactive
 import sys, glob, warnings
+
 
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
@@ -253,7 +255,7 @@ def get_ccd_section(image_header, section_name):
 	'''
 	section = image_header[section_name]
 
-	xmin = int(section.split('[')[1].split(':')[0]) - 1
+	xmin = int(section.split('[')[1].split(':')[0]) - 1 # NOTE: x and y here are in the FITS convention
 	xmax = int(section.split(':')[1].split(',')[0])
 	ymin = int(section.split(',')[1].split(':')[0]) - 1
 	ymax = int(section.split(':')[-1].split(']')[0])
@@ -261,10 +263,47 @@ def get_ccd_section(image_header, section_name):
 	if section_name == 'BIASSEC':	############ DO THIS BETTER!!!!!! ############
 		xmin += 10
 
-	return ymin, ymax, xmin, xmax
+	return ymin, ymax, xmin, xmax # NOTE: To fit the python convention when this function is called, y and x are swapped
 
 def check_flat_counts(flat_info, config):
+	# Get flat counts
+	'''
+	counts = []
+	for flat in flat_info['filename']:
+		data = CCDData.read(config['out_dir'] + 'midproc/' +  flat['filename'], unit=config['data_units'], hdu=config['ext'])
+		counts.append(np.sum(data))
+	counts = np.asarray(counts)
+	'''
+
+	# Throw out flats with bad counts
+
 	return flat_info.copy()
+
+
+def find_best_masterframe(mastertype, sci_info, config):
+	if sci_info['instrument'] == config['lbc_red']:
+		instrument = '_R'
+	elif sci_info['instrument'] == config['lbc_blue']:
+		instrument = '_B'
+	chip = '-' + sci_info['filename'].split('-')[-1].split('.fits')[0]
+
+	if mastertype == 'zero':
+		master_name = config['out_dir'] + 'midproc/masterbias_zero' + chip + instrument + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_data = CCDData.read(master_name, unit=config['data_units'])
+
+	elif mastertype == 'bias2D':
+		master_name = config['out_dir'] + 'midproc/masterbias_2Dbias' + chip + instrument + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_data = CCDData.read(master_name, unit=config['data_units'])
+
+	elif mastertype == 'dark':
+		master_name = config['out_dir'] + 'midproc/masterdark' + chip + '_' + sci_info['filter'] + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_data = CCDData.read(master_name, unit=config['data_units'])
+
+	elif mastertype == 'flat':
+		master_name = config['out_dir'] + 'midproc/masterflat' + chip + '_' + sci_info['filter'] + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_data = CCDData.read(master_name, unit=config['data_units'])
+
+	return master_data
 
 
 # Calculate given image stats

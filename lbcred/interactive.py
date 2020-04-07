@@ -10,6 +10,7 @@ import numpy as np
 import ccdproc, os, sys, time, shutil, warnings, yaml
 from astropy.utils.exceptions import AstropyUserWarning
 
+
 combine_arg_dict = {'median': np.ma.median,
 					'mean' : np.ma.mean,
 					'std' : np.ma.std,
