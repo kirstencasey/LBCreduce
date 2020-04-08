@@ -18,58 +18,6 @@ import sys, glob, warnings
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
 keys = ['imagetyp', 'object', 'propid']
-'''
-class File_Information():
-	def __init__(self, config, glob_include=None, directory=None, midproc=False, **keys):
-		# make table
-		if glob_include = None:
-			glob_include = config['glob_include']
-		if directory is None:
-			directory = config['image_dir']
-
-		all_files = glob.glob(directory+glob_include)
-
-		if len(all_files) == 0:
-			warnings.warn('No files found in ' + directory, AstropyUserWarning)	########## WORK ON THIS - for when no files are found ###########
-			sys.exit('lbcreduce stopped.')
-
-		if not midproc and config['exclude'] is not None:
-			all_files = [ im for im in all_files if config['exclude'] not in im ]
-
-		# Loop through files to get relevant information
-		propids = []
-		objects = []
-		imagetyps = []					######################### DO THIS BETTER!!!!!########################
-		filters = []
-		for fi in all_files:
-			hdulist = fits.open(fi)
-			propids.append(hdulist[0].header['PROPID'])
-			objects.append(hdulist[1].header['OBJECT'])
-			imagetyps.append(hdulist[1].header['IMAGETYP'])
-			filters.append(hdulist[1].header['FILTER'])
-			hdulist.close()
-
-		propids = np.asarray(propids)
-		all_files = np.asarray(all_files)
-		objects = np.asarray(objects)
-		imagetyps = np.asarray(imagetyps)
-		filters = np.asarray(filters)
-
-		file_info = Table()
-		file_info['filename'] = all_files
-		file_info['imagetyp'] = imagetyps
-		file_info['object'] = objects
-		file_info['filter'] = filters
-		file_info['propid'] = propids
-		self.file_info = file_info
-
-	def values(self, col_name, unique=False):
-		vals = np.asarray(self.file_info[col_name])
-		if unique:
-			vals = np.unique(vals)
-		return vals
-
-'''
 
 
 # Get images to do the reduction

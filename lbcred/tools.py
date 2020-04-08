@@ -220,7 +220,7 @@ def process(config, file_info):
 	for im in sci_ims:
 		# Get image data
 		data = CCDData.read(config['out_dir'] + 'midproc/' +  im['filename'], unit=config['data_units'], hdu=config['ext'])
-		proc_name = out_dir + im['filename'].split('.fits')[-1] + '_'
+		proc_name = out_dir + im['filename'].split('.fits')[0] + '_' + im['object'] + '_'
 
 		# Subtract overscan, trim
 		if config['overscan']:
@@ -252,13 +252,13 @@ def process(config, file_info):
 		if config['flat']:
 			data_temp = data
 			flat = image.find_best_masterframe('flat', im, config)
+			flat.data[np.where(flat.data==0)]='Nan'
 			data = CCDData.divide(data_temp, flat)
 			data.meta = data_temp.meta
 			proc_name += 'F'
-		print(proc_name + '.fits')
+
 		# Save image
-		print('PROC_NAME: ', proc_name + '.fits')
-		CCDData.write(data, proc_name + '.fits')
+		fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
 
 	return
 
