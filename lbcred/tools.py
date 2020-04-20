@@ -152,14 +152,18 @@ def flat(config, file_info):
 	# Get flats
 	raw_flats_info = file_info[np.where(file_info['imagetyp']==config['flat_image_keyword'])]
 	out_names = []
+	dates = []
 
 	# Examine flatfield counts - throw out flats with bad counts
-	processed_flats_info = image.check_flat_counts(raw_flats_info, config)
+	if config['examine_flat_counts']:
+		processed_flats_info = image.check_flat_counts(raw_flats_info, config)
+	else: processed_flats_info = raw_flats_info.copy()
 
 	# Loop through files to calibrate flats (subtract bias, trim overscan):
-	for flat_im in raw_flats_info:
+	for flat_im in processed_flats_info:
 		# Get data
 		data = CCDData.read(config['out_dir'] + 'midproc/' +  flat_im['filename'], unit=config['data_units'], hdu=config['ext'])
+		dates.append(data.meta['DATE_OBS'].split('T')[0])
 
 		# Trim overscan region
 		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])
@@ -185,16 +189,26 @@ def flat(config, file_info):
 
 	processed_flats_info['filename'] = Column(data=out_names, name='filename')
 
-	# Make master flat for each filter
+	# Make master flat for each filter, day
 	filts = np.unique(processed_flats_info['filter'])
-
+	dates = np.unique(np.asarray(dates))
 	for filt in filts:
 		flats_to_combine = processed_flats_info['filename'][np.where(processed_flats_info['filter']==filt)].copy()
-		for chip in ['-chip1','-chip2','-chip3','-chip4']:
-			mask = [idx for idx,fi in enumerate(flats_to_combine) if chip in fi]
-			chip_info = flats_to_combine[mask]
-			master_name = config['out_dir'] + 'midproc/masterflat' + chip + '_' + filt + '.fits'
-			masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **config['combine_options'])
+		for day in dates:
+			date = day.split('-')[0] + day.split('-')[1] + day.split('-')[2]     ################# DO THIS BETTER
+			mask = [idx for idx,fi in enumerate(flats_to_combine) if date in fi]
+			date_info = flats_to_combine[mask]
+			if len(date_info) == 0: continue
+			for chip in ['-chip1','-chip2','-chip3','-chip4']:
+				master_name = config['out_dir'] + 'midproc/masterflat' + '_' + day + '_' + chip + '_' + filt + '.fits'
+				mask = [idx for idx,fi in enumerate(date_info) if chip in fi]
+				chip_info = date_info[mask]
+				if len(chip_info) == 0: continue
+				if len(chip_info) == 1:
+					shutil.copyfile(chip_info[0], master_name)
+					warnings.warn(f'Only one flat to \'combine\' for {master_name}.', AstropyUserWarning)
+					continue
+				masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **config['combine_options'])
 
 	# Get feedback on master flats
 
@@ -267,4 +281,13 @@ def stack(config, file_info):
 	'''
 	Note: talk to Chris and Johnny about this
 	'''
+
+	# Run through astrometry.net
+
+	# Run through SCAMP (first SDSS/Pan-STARRS catalog then Gaia)
+
+	# Re-combine chips
+
+	# Run through SWarp
+
 	return

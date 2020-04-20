@@ -24,12 +24,12 @@ lbc_red : 'LBC-RED'
 lbc_blue : 'LBC_BLUE'
 
 ### Image Processing Steps ###
-reduce_objects : True # Always true unless you just want to make master flats/bias images, stack pre-processed images, etc.
+reduce_objects : False # Always true unless you just want to make master flats/bias images, stack pre-processed images, etc.
 flat : True # Perform flat-fielding
 overscan : True # Subtract overscan from object images
 stack : True # Stack images of like-object files after processing
 zero : False # Perform zero frame subtraction on object files
-bias : True # Perform 2D bias subtraction on flat fields
+bias : False # Perform 2D bias subtraction on flat fields
 dark : False # Perform dark subtraction
 
 ### File selection options ###
@@ -48,15 +48,15 @@ combine_options:
   weights :
   scale :
   mem_limit : 16000000000.0
-  clip_extrema : False
+  clip_extrema : True
   nlow : 1
   nhigh : 1
   minmax_clip : False
   minmax_clip_min :
   minmax_clip_max :
   sigma_clip : True
-  sigma_clip_low_thresh : 3
-  sigma_clip_high_thresh : 3
+  sigma_clip_low_thresh : 5
+  sigma_clip_high_thresh : 5
   sigma_clip_func : 'median' # Options: median, mean
   sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
   dtype :
@@ -70,6 +70,16 @@ overscan_options:
   median : True
   model :
   add_keyword : True
+
+# Examine flat field counts
+examine_flat_counts: True
+sigma_clip_flats_options:
+  sigma : 3
+  sigma_lower :
+  sigma_upper :
+  maxiters: 5
+  cenfunc: 'median'
+  stdfunc: 'std'
 
 # Overscan trim
 # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.trim_image.html

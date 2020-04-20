@@ -214,18 +214,19 @@ def get_ccd_section(image_header, section_name):
 	return ymin, ymax, xmin, xmax # NOTE: To fit the python convention when this function is called, y and x are swapped
 
 def check_flat_counts(flat_info, config):
+
 	# Get flat counts
-	'''
 	counts = []
 	for flat in flat_info['filename']:
-		data = CCDData.read(config['out_dir'] + 'midproc/' +  flat['filename'], unit=config['data_units'], hdu=config['ext'])
+		data = CCDData.read(config['out_dir'] + 'midproc/' +  flat, unit=config['data_units'], hdu=config['ext'])
 		counts.append(np.sum(data))
 	counts = np.asarray(counts)
-	'''
 
 	# Throw out flats with bad counts
+	clipped_counts = stats.sigma_clip(counts, **config['sigma_clip_flats_options'])
+	mask = ~clipped_counts.mask
 
-	return flat_info.copy()
+	return flat_info[mask].copy()
 
 
 def find_best_masterframe(mastertype, sci_info, config):
