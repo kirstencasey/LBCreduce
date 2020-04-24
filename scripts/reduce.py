@@ -1,9 +1,8 @@
 from lbcred import tools, interactive, image
 import numpy as np
 import os, time, shutil, warnings
-from astropy import log
+from lbcred.log import logger
 
-log.setLevel('ERROR')
 
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
@@ -13,42 +12,42 @@ keys = ['imagetyp']
 def reduce(config_filename, options = {}):
 
     # Read configuration file - NOTE THAT THIS FUNC ASSUMES DEFAULT OPTIONS FROM COMMAND LINE ARE None
-    print('Getting ready...')
+    logger.info('Getting ready...')
     initial_config = tools.initialize_config(options, config_filename) # Overwrite anything in the config file that was supplied via the command line
 
     # Do directory stuff
     config, dir_overwritten = interactive.initialize_directories(initial_config)
 
     # Get raw images
-    print('Gathering image information...')
+    logger.info('Gathering image information...')
     image_info = image.get_image_info(config)
     image.check_files(image_info, config)
     image_info = image.separate_chips(image_info, config)
 
     # Create master bias images (2D bias and zero frame)
     if config['zero'] or config['flat']:
-        print('Calibrating bias images...')
+        logger.info('Calibrating bias images...')
         tools.bias('2Dbias', config, image_info) # Needed for flat fields
         tools.bias('zero', config, image_info)   #### MAKE THESE MORE EFFICIENT (COMBINE THEM WHERE POSSIBLE) #####
 
     # Calibrate dark frames
     if config['dark']:
-        print('Calibrating dark frames...')
+        logger.info('Calibrating dark frames...')
         tools.dark(config, image_info)
 
     # Check counts, calibrate flat fields
     if config['flat']:
-        print('Calibrating flats...')
+        logger.info('Calibrating flats...')
         tools.flat(config, image_info)
 
     # Process images
     if config['reduce_objects']:
-        print('Processing science images...')
+        logger.info('Processing science images...')
         tools.process(config, image_info)
 
     # Stack images
     if config['stack']:
-        #print('Stacking science images...')
+        #logger.info('Stacking science images...')
         tools.stack(config, image_info)
 
     # Ask for final notes (if check_output is not 0)
