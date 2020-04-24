@@ -1,4 +1,4 @@
-import tools, interactive, image
+from lbcred import tools, interactive, image
 import numpy as np
 import os, time, shutil, warnings
 from astropy import log
@@ -10,7 +10,7 @@ negative = ['n','N','no','No']
 keys = ['imagetyp']
 #warnings.simplefilter('ignore', FITSFixedWarning)
 
-def reduce(options, config_filename):
+def reduce(config_filename, options = {}):
 
     # Read configuration file - NOTE THAT THIS FUNC ASSUMES DEFAULT OPTIONS FROM COMMAND LINE ARE None
     print('Getting ready...')
@@ -48,7 +48,7 @@ def reduce(options, config_filename):
 
     # Stack images
     if config['stack']:
-        print('Stacking science images...')
+        #print('Stacking science images...')
         tools.stack(config, image_info)
 
     # Ask for final notes (if check_output is not 0)
@@ -73,8 +73,9 @@ def reduce(options, config_filename):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser(description='Process raw LBC images.')
+    default_config = os.path.join(lbcred.project_dir, 'lbcreduce-config.yml')
     parser.add_argument('-i','--image_dir', type=str, help='name of directory containing all raw images to be used in analysis; if not running this program in the directory containing image_dir, make sure to include full path name')
-    parser.add_argument('--config', type=str, default='./lbcreduce-config.yml', help='path of the .yml config file ')
+    parser.add_argument('--config', type=str, default=default_config, help='path of the .yml config file ')
     parser.add_argument('-ext','--extension', type=int, help='extension of FITS file data to be used')
     parser.add_argument('-o','--overscan', type=bool, help='model, subtract, and trim overscan')
     parser.add_argument('-z','--zero', type=bool, help='include zero frame subtraction in reduction')
@@ -114,4 +115,4 @@ if __name__ == '__main__':
     }
 
 
-    reduce(options, config_filename=args.config)
+    reduce(config_filename=args.config, options=options)

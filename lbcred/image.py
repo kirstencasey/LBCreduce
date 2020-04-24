@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from astropy import stats
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.nddata import CCDData
-import interactive
+from . import interactive
 import sys, glob, warnings
 
 

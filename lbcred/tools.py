@@ -1,12 +1,12 @@
 '''
 Functions for reducing LBC images:
 	- Overscan and trim
-	- Constructing master biases
+	- Constructing master biases, flats
 	- Calibrating flat fields, etc.
 	- Stacking images
 '''
 import numpy as np
-import image
+from . import image
 from astropy.stats import sigma_clip, mad_std
 import ccdproc, os, sys, time, shutil, warnings, yaml
 from astropy.utils.exceptions import AstropyUserWarning
@@ -30,24 +30,6 @@ def initialize_config(input_options, config_filename):
 def textfile(config, end_notes, dir_overwritten):
 	'''
 	This function creates a textfile in the directory containing the processed images which details all the decisions made during processing
-
-	Parameters
-	----------
-	initial_options : list
-		Options input by user when the program was first called.
-
-	final_options : list
-		Options actually used. If the options were not changed during the course of the program then final_options is None.
-
-	end_notes : str
-		Notes input by user after all the image processing steps have complted to be saved in textfile.
-
-	dir_overwritten : bool
-		Information about whether a directory was overwritten in order to make room for the output directory
-
-	Returns
-	-------
-	N/A
 	'''
 
 	# Make text file with notes

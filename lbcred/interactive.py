@@ -4,7 +4,7 @@ Functions for allowing user to check output of processing pipeline:
 	- Constructing master biases, flat fields, etc.
 	- Stacking images
 '''
-import image
+from . import image
 from astropy.stats import mad_std
 import numpy as np
 import ccdproc, os, sys, time, shutil, warnings, yaml

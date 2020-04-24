@@ -3,7 +3,8 @@
 ## Installation
 lbcreduce can be installed in the usual way using git clone.
 
-Packages not included in Anaconda that are needed to run lbcreduce:
+Packages needed to run lbcreduce:
+- [conda](https://www.anaconda.com)
 - [ccdproc](https://ccdproc.readthedocs.io/en/latest/install.html)
 - [yaml](https://yaml.org)
 
@@ -36,6 +37,7 @@ python reduce.py
 ## Primer on Image Processing
 See the following: [CCD Data Reduction Guide](https://mwcraig.github.io/ccd-as-book/00-00-Preface.html)
 Thanks also go to many in the Physics and Astronomy Departments at OSU for helpful discussions.
+
 ...
 
 Kirsten Casey: casey.395@osu.edu
