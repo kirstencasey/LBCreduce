@@ -200,7 +200,7 @@ def flat(config, file_info):
 			date_info = flats_to_combine[mask]
 			if len(date_info) == 0: continue
 			for chip in ['-chip1','-chip2','-chip3','-chip4']:
-				master_name = config['out_dir'] + 'midproc/masterflat' + '_' + day + '_' + chip + '_' + filt + '.fits'
+				master_name = config['out_dir'] + 'midproc/masterflat' + '_' + day + chip + '_' + filt + '.fits'
 				mask = [idx for idx,fi in enumerate(date_info) if chip in fi]
 				chip_info = date_info[mask]
 				if len(chip_info) == 0: continue
@@ -235,6 +235,7 @@ def process(config, file_info):
 		# Get image data
 		data = CCDData.read(config['out_dir'] + 'midproc/' +  im['filename'], unit=config['data_units'], hdu=config['ext'])
 		proc_name = out_dir + im['filename'].split('.fits')[0] + '_' + im['object'] + '_'
+		sci_date = data.meta['DATE_OBS'].split('T')[0]
 
 		# Subtract overscan, trim
 		if config['overscan']:
@@ -265,7 +266,7 @@ def process(config, file_info):
 		# Find the best master flat frame, divide
 		if config['flat']:
 			data_temp = data
-			flat = image.find_best_masterframe('flat', im, config)
+			flat = image.find_best_masterframe('flat', im, config, date = sci_date)
 			flat.data[np.where(flat.data==0)]='Nan'
 			data = CCDData.divide(data_temp, flat)
 			data.meta = data_temp.meta

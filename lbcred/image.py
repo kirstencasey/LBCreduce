@@ -229,7 +229,7 @@ def check_flat_counts(flat_info, config):
 	return flat_info[mask].copy()
 
 
-def find_best_masterframe(mastertype, sci_info, config):
+def find_best_masterframe(mastertype, sci_info, config, date = None):
 	if sci_info['instrument'] == config['lbc_red']:
 		instrument = '_R'
 	elif sci_info['instrument'] == config['lbc_blue']:
@@ -249,7 +249,7 @@ def find_best_masterframe(mastertype, sci_info, config):
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 
 	elif mastertype == 'flat':
-		master_name = config['out_dir'] + 'midproc/masterflat' + chip + '_' + sci_info['filter'] + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_name = config['out_dir'] + 'midproc/masterflat' + '_' + date + chip + '_' + sci_info['filter'] + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 
 	return master_data

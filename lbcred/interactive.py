@@ -121,3 +121,10 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 	config['combine_options']['sigma_clip_dev_func'] = combine_arg_dict[config['combine_options']['sigma_clip_dev_func']]
 
 	return config, dir_overwritten
+
+
+'''
+def plot_overscan():        ######################## WORK ON THIS ########################
+
+	return
+'''
