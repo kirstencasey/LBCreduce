@@ -7,8 +7,10 @@ Packages needed to run lbcreduce:
 - [yaml](https://yaml.org)
 
 lbcreduce can be installed in the usual way using git clone. Once the repository is cloned:
+```
 cd LBCreduce/
 python setup.py install
+```
 
 ## What it does
 The most basic idea behind lbcreduce is to take raw images (i.e. object images, flat fields, darks, bias images, etc.) and turn them into images ready for scientific analysis.
