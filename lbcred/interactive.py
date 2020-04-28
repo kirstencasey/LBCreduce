@@ -87,13 +87,9 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 		image_dir = get_input('Enter a new image_dir (where lbcreduce looks for images to use in reduction): ', is_dir=True)
 
 	# Fix directory formats
-	image_dir = os.path.abspath(image_dir) + '/'
-	if out_dir != None:
-		out_dir = os.path.abspath(out_dir) + '/'
-	else:
+	if out_dir is None:
 		datetime = time.strftime('%Y%m%d_%H%M%S',time.gmtime())
-		out_dir = image_dir + f'lbcreduce_{datetime}/'
-		out_dir = os.path.abspath(image_dir + f'../lbcreduce_{datetime}/') + '/'
+		out_dir = os.path.join(image_dir, f'../lbcreduce_{datetime}')
 
 	directory_exists = os.path.isdir(out_dir)
 	dir_overwritten = False
@@ -112,7 +108,7 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 	else:
 		os.mkdir(out_dir)
 
-	os.mkdir(out_dir+'midproc/')
+	os.mkdir(os.path.join(out_dir,'midproc'))
 
 	# Update options			################## DO THIS BETTER - IN A DIFFERENT FUNCTION ####################
 	config['image_dir'] = image_dir
@@ -121,10 +117,3 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 	config['combine_options']['sigma_clip_dev_func'] = combine_arg_dict[config['combine_options']['sigma_clip_dev_func']]
 
 	return config, dir_overwritten
-
-
-'''
-def plot_overscan():        ######################## WORK ON THIS ########################
-
-	return
-'''

@@ -1,16 +1,22 @@
 ####### LBC Reduce Parameters #######
 
 ### Directory options ###
-#image_dir : '/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
-image_dir : '/Users/kirstencasey/Box/Research/LBT'
-out_dir : '/Users/kirstencasey/test_out1' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+image_dir : '/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
+out_dir : '/Users/kirstencasey/test_out' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 
 ### Other common options ###
 ext : 1 # FITS file extension of imaging data
 check_output : True # Do you want to check on the image processing steps as they happen or just trust that everything is working out okay?
+logger_level : 'INFO' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
+log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
 notes : '' # These notes will be added to the image-production-details.txt file included in the output directory along with the other options that were used diring image processing
 data_units : 'adu'
+reduce_selected_chips :  # Choose which LBC chips to reduce. True = reduce; False = do not reduce
+  chip1 : False
+  chip2 : True
+  chip3 : False
+  chip4 : False
 
 ### Header IMAGETYP Keywords ###
 bias_image_keyword : 'zero'

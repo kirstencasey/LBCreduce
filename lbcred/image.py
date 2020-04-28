@@ -12,7 +12,7 @@ from astropy import stats
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.nddata import CCDData
 from . import interactive
-import sys, glob, warnings
+import sys, glob, warnings, os
 
 
 affirmative = ['y','Y','yes','Yes']
@@ -47,7 +47,7 @@ def get_image_info(config, image_dir=None, filenames=None):
 		image_dir = config['image_dir']
 
 	if filenames is None:
-		all_images = glob.glob(image_dir+config['glob_include'])
+		all_images = glob.glob(os.path.join(image_dir,config['glob_include']))
 
 		if len(all_images) == 0:
 			warnings.warn('No files found in image_dir!', AstropyUserWarning)	########## WORK ON THIS - for when no files are found ###########
@@ -67,7 +67,7 @@ def get_image_info(config, image_dir=None, filenames=None):
 	filters = []
 	lbcinst = []
 	for fi in all_images:
-		hdulist = fits.open(image_dir + fi)
+		hdulist = fits.open(os.path.join(image_dir, fi))
 		propids.append(hdulist[0].header['PROPID'])
 		objects.append(hdulist[1].header['OBJECT'])
 		imagetyps.append(hdulist[1].header['IMAGETYP'])
@@ -170,13 +170,13 @@ def check_files(file_info, config):
 	return
 
 def separate_chips(image_info, config):
-	save_dir = config['out_dir']+'midproc/'
+	save_dir = os.path.join(config['out_dir'],'midproc')
 
 	# Loop through files
 	for fi in image_info['filename']:
 
 		# Get current HDU data
-		hdul = fits.open(config['image_dir'] + fi)
+		hdul = fits.open(os.path.join(config['image_dir'], fi))
 		primary_hdu = hdul[0]
 		primary_hdu.header['NEXTEND'] = 2
 		chip1_hdu = hdul[1]
@@ -184,15 +184,19 @@ def separate_chips(image_info, config):
 		chip3_hdu = hdul[3]
 		chip4_hdu = hdul[4]
 
-		# Save each chip
-		fits.HDUList([primary_hdu,chip1_hdu]).writeto(save_dir + fi.split('/')[-1].replace('.fits','-chip1.fits'))
-		fits.HDUList([primary_hdu,chip2_hdu]).writeto(save_dir + fi.split('/')[-1].replace('.fits','-chip2.fits'))
-		fits.HDUList([primary_hdu,chip3_hdu]).writeto(save_dir + fi.split('/')[-1].replace('.fits','-chip3.fits'))
-		fits.HDUList([primary_hdu,chip4_hdu]).writeto(save_dir + fi.split('/')[-1].replace('.fits','-chip4.fits'))
+		# Save selected chips
+		if config['reduce_selected_chips']['chip1']:
+			fits.HDUList([primary_hdu,chip1_hdu]).writeto(os.path.join(save_dir, fi.split('/')[-1].replace('.fits','-chip1.fits')))
+		if config['reduce_selected_chips']['chip2']:
+			fits.HDUList([primary_hdu,chip2_hdu]).writeto(os.path.join(save_dir, fi.split('/')[-1].replace('.fits','-chip2.fits')))
+		if config['reduce_selected_chips']['chip3']:
+			fits.HDUList([primary_hdu,chip3_hdu]).writeto(os.path.join(save_dir, fi.split('/')[-1].replace('.fits','-chip3.fits')))
+		if config['reduce_selected_chips']['chip4']:
+			fits.HDUList([primary_hdu,chip4_hdu]).writeto(os.path.join(save_dir, fi.split('/')[-1].replace('.fits','-chip4.fits')))
 
 		hdul.close()
 
-	files_by_chip = get_image_info(config, image_dir=config['out_dir']+'midproc/')
+	files_by_chip = get_image_info(config, image_dir=os.path.join(config['out_dir'],'midproc'))
 
 	return files_by_chip
 
@@ -218,7 +222,7 @@ def check_flat_counts(flat_info, config):
 	# Get flat counts
 	counts = []
 	for flat in flat_info['filename']:
-		data = CCDData.read(config['out_dir'] + 'midproc/' +  flat, unit=config['data_units'], hdu=config['ext'])
+		data = CCDData.read(os.path.join(config['out_dir'], 'midproc',  flat), unit=config['data_units'], hdu=config['ext'])
 		counts.append(np.sum(data))
 	counts = np.asarray(counts)
 
@@ -237,19 +241,19 @@ def find_best_masterframe(mastertype, sci_info, config, date = None):
 	chip = '-' + sci_info['filename'].split('-')[-1].split('.fits')[0]
 
 	if mastertype == 'zero':
-		master_name = config['out_dir'] + 'midproc/masterbias_zero' + chip + instrument + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_name = os.path.join(config['out_dir'], 'midproc', 'masterbias_zero' + chip + instrument + '.fits')############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 
 	elif mastertype == 'bias2D':
-		master_name = config['out_dir'] + 'midproc/masterbias_2Dbias' + chip + instrument + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_name = os.path.join(config['out_dir'], 'midproc', 'masterbias_2Dbias' + chip + instrument + '.fits')############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 
 	elif mastertype == 'dark':
-		master_name = config['out_dir'] + 'midproc/masterdark' + chip + '_' + sci_info['filter'] + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_name = os.path.join(config['out_dir'], 'midproc', 'masterdark' + chip + '_' + sci_info['filter'] + '.fits')############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 
 	elif mastertype == 'flat':
-		master_name = config['out_dir'] + 'midproc/masterflat' + '_' + date + chip + '_' + sci_info['filter'] + '.fits'############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
+		master_name = os.path.join(config['out_dir'], 'midproc', 'masterflat' + '_' + date + chip + '_' + sci_info['filter'] + '.fits')
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 
 	return master_data
