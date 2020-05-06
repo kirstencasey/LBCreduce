@@ -10,12 +10,6 @@ import numpy as np
 import ccdproc, os, sys, time, shutil, warnings, yaml
 from astropy.utils.exceptions import AstropyUserWarning
 
-
-combine_arg_dict = {'median': np.ma.median,
-					'mean' : np.ma.mean,
-					'std' : np.ma.std,
-					'mad_std' : mad_std}
-
 affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
 default_acceptable = affirmative + negative
@@ -113,7 +107,5 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 	# Update options			################## DO THIS BETTER - IN A DIFFERENT FUNCTION ####################
 	config['image_dir'] = image_dir
 	config['out_dir'] = out_dir
-	config['combine_options']['sigma_clip_func'] = combine_arg_dict[config['combine_options']['sigma_clip_func']]
-	config['combine_options']['sigma_clip_dev_func'] = combine_arg_dict[config['combine_options']['sigma_clip_dev_func']]
 
 	return config, dir_overwritten

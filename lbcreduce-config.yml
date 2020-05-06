@@ -1,4 +1,4 @@
-####### LBC Reduce Parameters #######
+####### LBCreduce Parameters #######
 
 ### Directory options ###
 image_dir : '/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
@@ -75,8 +75,19 @@ overscan_options:
   overscan_axis : 1
   fits_section :
   median : True
-  model :
+  model : 'legendre' # Options: legendre
   add_keyword : True
+
+# More info: https://docs.astropy.org/en/stable/api/astropy.modeling.polynomial.Legendre1D.html
+legendre_options:
+  degree :  4
+  domain :
+  window_lower : -1 # Stand-in for original 'window' parameter; a in window=[a,b]
+  window_upper : 1 # Stand-in for original 'window' parameter; b in window=[a,b]
+  n_models :
+  model_set_axis :
+  name :
+  meta :
 
 # Examine flat field counts
 examine_flat_counts: True

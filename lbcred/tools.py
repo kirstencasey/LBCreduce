@@ -8,13 +8,14 @@ Functions for reducing LBC images:
 import numpy as np
 from . import image
 from astropy.stats import sigma_clip, mad_std
-import ccdproc, os, sys, time, shutil, warnings, yaml
+import ccdproc, os, sys, time, shutil, warnings, yaml, random
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.nddata import CCDData
 from astropy.io import fits
 from astropy.table import Column
 import logging
 from .log import logger
+from astropy.modeling import models
 
 
 def setup_logger(level, log_fn=None):
@@ -53,6 +54,23 @@ def initialize_config(config_filename, input_options = {}):
 	if config['reduce_selected_chips']['chip3']: chips.append('-chip3')
 	if config['reduce_selected_chips']['chip4']: chips.append('-chip4')
 	config['chips'] = chips
+
+	if config['overscan_options']['model'] == 'legendre':
+		window = [ config['legendre_options']['window_lower'], config['legendre_options']['window_upper'] ]
+		config['legendre_options'].pop('window_lower')
+		config['legendre_options'].pop('window_upper')
+		config['legendre_options']['window'] = window
+
+
+	combine_arg_dict = {'median': np.ma.median,
+						'mean' : np.ma.mean,
+						'std' : np.ma.std,
+						'mad_std' : mad_std,
+						'legendre' : models.Legendre1D(**config['legendre_options'])}
+
+	config['combine_options']['sigma_clip_func'] = combine_arg_dict[config['combine_options']['sigma_clip_func']]
+	config['combine_options']['sigma_clip_dev_func'] = combine_arg_dict[config['combine_options']['sigma_clip_dev_func']]
+	config['overscan_options']['model'] = combine_arg_dict[config['overscan_options']['model']]
 
 	return config
 
@@ -290,15 +308,19 @@ def stack(config, file_info):
 
 	return
 
-
+'''
 def plot_overscan(image_info, config, num_images = None, axis = 0, flatten_func = 'median'):
-	plot_files = image_info['filename']
+
+	# Get images to plot
+	plot_files = list(image_info['filename'])
 	if num_images is not None:
-		plot_files = random.sample(plot_files, num_images)
-	print(plot_files)
+		plot_files = random.sample(list(plot_files), num_images)
+
+
+
 	return
 
-
+'''
 def model_overscan(options, file_info):
 	'''
 
