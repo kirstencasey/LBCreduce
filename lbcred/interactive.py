@@ -103,6 +103,7 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 		os.mkdir(out_dir)
 
 	os.mkdir(os.path.join(out_dir,'midproc'))
+	os.mkdir(os.path.join(out_dir,'plots'))
 
 	# Update options			################## DO THIS BETTER - IN A DIFFERENT FUNCTION ####################
 	config['image_dir'] = image_dir

@@ -11,8 +11,11 @@ import matplotlib.pyplot as plt
 from astropy import stats
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.nddata import CCDData
-from . import interactive
+from astropy.stats import sigma_clip, mad_std
+from . import interactive, tools
 import sys, glob, warnings, os
+from astropy.modeling import models, fitting
+from scipy.stats import chisquare
 
 
 affirmative = ['y','Y','yes','Yes']
@@ -212,8 +215,8 @@ def get_ccd_section(image_header, section_name):
 	ymin = int(section.split(',')[1].split(':')[0]) - 1
 	ymax = int(section.split(':')[-1].split(']')[0])
 
-	if section_name == 'BIASSEC':	############ DO THIS BETTER!!!!!! ############
-		xmin += 10
+	#if section_name == 'BIASSEC':	############ DO THIS BETTER!!!!!! ############
+	#	xmin += 10
 
 	return ymin, ymax, xmin, xmax # NOTE: To fit the python convention when this function is called, y and x are swapped
 
@@ -254,58 +257,75 @@ def find_best_masterframe(mastertype, sci_info, config, date = None):
 
 	elif mastertype == 'flat':
 		master_name = os.path.join(config['out_dir'], 'midproc', 'masterflat' + '_' + date + chip + '_' + sci_info['filter'] + '.fits')
+		'''
+		if os.path.isfile(master_name):
+			master_data = CCDData.read(master_name, unit=config['data_units'])
+		else:
+			warnings.warn(f'File not found: {master_name.split('/')[-1]}', AstropyUserWarning)
+			warnings.warn('Select one of the following masterflats to use instead or type \'STOP\' to stop looking.', AstropyUserWarning)
+		'''
 		master_data = CCDData.read(master_name, unit=config['data_units'])
-
 	return master_data
 
 
-# Calculate given image stats
-def calc_stats(images, sigma_clip=True, sigma=3.0, maxiters=5):
-	'''
-	This function accepts a list of images and returns basic statistics for the image counts
 
-	Parameters
-	----------
-	images : ImageFileCollection
-		This is an ImageFileCollection object of images for which to calculate basic statistics
+def find_best_overscan_legendre_model(overscan, image_info, legendre_options, max_degree_allowed, std_dev_func = mad_std, sigma=4, bin_width=12, bin_func='sigmaclip_mean', sigma_clip_options=None, save_plot=True, out_dir=None):
 
-	Returns
-	-------
-	arr
-		Returns information about the mean, median, std dev, etc. count for each input image
+	# Correct bin_width, prep for binning overscan
+	imgname = image_info['filename']
+	bin_width = tools.find_nearest_multiple(overscan.shape[0], bin_width)
+	num_rows = int(overscan.shape[0]/bin_width - 1)
+	binned_overscan = np.zeros(num_rows)
+	x = np.arange(num_rows)
 
-	'''
-	num_images = len(images.summary)
+	if save_plot: fig = plt.figure()
 
-	mean = numpy.zeros(num_images)
-	median = numpy.zeros(num_images)
-	mad_std = numpy.zeros(num_images)
-	std = numpy.zeros(num_images)
-	counts = numpy.zeros(num_images)
+	# Bin overscan data
+	idx = 0
+	row_num = 0
+	saverow = []
 
-	i = 0
-	for im in images.data(do_not_scale_image_data=True):
-		data_sigclipped = stats.sigma_clip(im, sigma=sigma, maxiters=maxiters)
-		mean[i] = data_sigclipped.mean()
-		median[i] = data_sigclipped.median()
-		std[i] = data_sigclipped.std()
-		mad_std = stats.mad_std(data_sigclipped)
-		i+=1
+	for row in overscan.data:
+		saverow = np.append(saverow,row)
+		if row_num % bin_width is 0 and row_num is not 0:
 
-	return stats
+			if bin_func == 'median':
+				binned_overscan[idx] = np.median(saverow)
+			elif bin_func == 'sigmaclipped_mean':
+				binned_overscan[idx] = np.mean(sigma_clip(saverow, **sigma_clip_options))
+			elif bin_finc == 'mean':
+				binned_overscan[idx] = np.mean(saverow)
 
-# Display given image (for use in notebooks)
-def show_image(image):
-	'''
-	This function displays a given image in a notebook
+			saverow=[]
+			idx += 1
 
-	Parameters
-	----------
-	image : arr
-		This is a 2D array representing the image to be displayed
+		row_num += 1
 
-	Returns
-	-------
-	None
-	'''
-	return
+	# Create overscan models up to and including max_degree_allowed (and with all the other parameters in legendre_options) based on binned data
+	fit = fitting.LevMarLSQFitter()
+	all_models = []
+	chisquare_results = []
+	model_num = 1
+	while model_num <= max_degree_allowed:
+		legendre_options['degree'] = model_num
+		all_models.append(fit(models.Legendre1D(**legendre_options), x, binned_overscan))
+		chisquare_results.append(chisquare(binned_overscan,all_models[-1](x), ddof=model_num).statistic)
+		model_num += 1
+
+	# Identify and deal with problem cases
+
+	# Decide which overscan model is best (use lowest order possible)
+	limiting_chi = np.median(chisquare_results) + sigma * std_dev_func(chisquare_results)
+	best_model = all_models[np.where(chisquare_results < limiting_chi)[0][0]]
+
+	# Plot overscan and models if requested
+
+	if save_plot:
+		plt.ylabel('counts')
+		plt.xlabel('image row (binned)')
+		plt.plot(binned_overscan,label=f'overscan, {bin_func}',c='black')
+		plt.plot(x, best_model(x), label=f'Legendre1D, degree = {best_model.degree}',c='dodgerblue')
+		plt.savefig(os.path.join(out_dir, f'overscan_model_{imgname}.png'))
+		plt.close()
+
+	return best_model

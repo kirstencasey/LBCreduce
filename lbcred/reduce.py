@@ -48,7 +48,7 @@ def reduce(config_filename, options = {}):
 
     # Stack images
     if config['stack']:
-        #logger.info('Stacking science images...')
+        logger.info('Stacking science images...')
         tools.stack(config, image_info)
 
     # Ask for final notes (if check_output is not 0)
