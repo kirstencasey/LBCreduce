@@ -1,6 +1,8 @@
 import sys
 import logging
 from astropy.logger import AstropyLogger
+from astropy.utils.console import color_print
+from tqdm import tqdm
 
 
 class LBCreduceLogger(AstropyLogger):
@@ -16,11 +18,19 @@ class LBCreduceLogger(AstropyLogger):
         # Set levels
         self.setLevel(level)
 
-        # Set up the stdout handler
-        sh = StreamHandler()
-        self.addHandler(sh)
-
+        # Set up the stdout handlers
+        self.sh = StreamHandler()
+        self.th = TqdmHandler()
+        self.addHandler(self.sh)
         self.propagate = False
+
+    def start_tqdm(self):
+        self.removeHandler(self.sh)
+        self.addHandler(self.th)
+
+    def end_tqdm(self):
+        self.removeHandler(self.th)
+        self.addHandler(self.sh)
 
 
 class StreamHandler(logging.StreamHandler):
@@ -34,10 +44,6 @@ class StreamHandler(logging.StreamHandler):
         '''
         The formatter for stderr
         '''
-        # Import utils.console only if necessary and at the latest because
-        # the import takes a significant time [#4649]
-        from astropy.utils.console import color_print
-
         if record.levelno <= logging.INFO:
             stream = sys.stdout
         else:
@@ -53,6 +59,26 @@ class StreamHandler(logging.StreamHandler):
             color_print(record.levelname, 'red', end='', file=stream)
         record.message = "{0}".format(record.msg)
         print(": " + record.message, file=stream)
+
+
+class TqdmHandler(logging.StreamHandler):
+
+    def emit(self, record):
+        if record.levelno <= logging.INFO:
+            stream = sys.stdout
+        else:
+            stream = sys.stderr
+
+        if record.levelno < logging.INFO:
+            color_print(record.levelname, 'magenta', end='', file=stream)
+        elif record.levelno < logging.WARN:
+            color_print(record.levelname, 'green', end='', file=stream)
+        elif record.levelno < logging.ERROR:
+            color_print(record.levelname, 'brown', end='', file=stream)
+        else:
+            color_print(record.levelname, 'red', end='', file=stream)
+        record.message = '{0}'.format(record.msg)
+        tqdm.write(': ' + record.message)
 
 
 logging.setLoggerClass(LBCreduceLogger)
