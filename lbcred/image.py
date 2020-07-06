@@ -220,6 +220,19 @@ def get_ccd_section(image_header, section_name):
 
 	return ymin, ymax, xmin, xmax # NOTE: To fit the python convention when this function is called, y and x are swapped
 
+def combine_headers(primary_hdu, image_hdu):
+
+	combined_header = image_hdu.header.copy()
+
+	for k,v in primary_hdu.header.items():
+	    if k in combined_header.keys() and (k,v) not in combined_header.items():
+	        if k == 'COMMENT':
+	            combined_header.append((k,v),end=True)
+	    else:
+	        combined_header[k] = v
+
+	return combined_header
+
 def check_flat_counts(flat_info, config):
 
 	# Get flat counts
@@ -242,6 +255,7 @@ def find_best_masterframe(mastertype, sci_info, config, date = None):
 	elif sci_info['instrument'] == config['lbc_blue']:
 		instrument = '_B'
 	chip = '-' + sci_info['filename'].split('-')[-1].split('.fits')[0]
+	master_data = None
 
 	if mastertype == 'zero':
 		master_name = os.path.join(config['out_dir'], 'midproc', 'masterbias_zero' + chip + instrument + '.fits')############ CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
@@ -258,12 +272,17 @@ def find_best_masterframe(mastertype, sci_info, config, date = None):
 	elif mastertype == 'flat':
 		master_name = os.path.join(config['out_dir'], 'midproc', 'masterflat' + '_' + date + chip + '_' + sci_info['filter'] + '.fits')
 		'''
+		############################################################################################################################## CHANGE THIS TO CONSIDER DIFFERENT MASTER DATES ###########
 		if os.path.isfile(master_name):
 			master_data = CCDData.read(master_name, unit=config['data_units'])
 		else:
 			warnings.warn(f'File not found: {master_name.split('/')[-1]}', AstropyUserWarning)
-			warnings.warn('Select one of the following masterflats to use instead or type \'STOP\' to stop looking.', AstropyUserWarning)
+			warnings.warn('Select one of the following masterflats to use instead (ex. type \'1\') or type \'stop\' to stop looking.', AstropyUserWarning)
+			masterflats = glob.glob(os.path.join(config['out_dir'], 'midproc') + 'masterflat*')
+			master_name = interactive.get_input(question, acceptable_responses=np.arange(1,len(masterflats)), exit_response='stop', full_stop = False)
 		'''
+		if master_name == os.path.join(config['out_dir'],'midproc','masterflat_2019-12-21-chip2_R-BESSEL.fits'):
+			master_name = '/Users/kirstencasey/test_out/midproc/masterflat_2019-12-20-chip2_R-BESSEL.fits'
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 	return master_data
 

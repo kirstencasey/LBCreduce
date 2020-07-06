@@ -46,6 +46,10 @@ def reduce(config_filename, options = {}):
         logger.info('Processing science images...')
         tools.process(config, image_info)
 
+    if config['astrometry']:
+        logger.info('Finding astrometric solutions...')
+        tools.astrometry(config, image_info)
+
     # Stack images
     if config['stack']:
         logger.info('Stacking science images...')

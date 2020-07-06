@@ -5,6 +5,9 @@ Packages needed to run LBCreduce:
 - [conda](https://www.anaconda.com)
 - [ccdproc](https://ccdproc.readthedocs.io/en/latest/install.html)
 - [yaml](https://yaml.org)
+- [astrometry.net](http://astrometry.net/use.html), optional
+- [scamp](https://www.astromatic.net/software/scamp), optional
+- [swarp](https://www.astromatic.net/software/swarp), optional
 
 LBCreduce can be installed in the usual way using git clone. Once the repository is cloned:
 ```
@@ -26,7 +29,7 @@ To see all the command-line options available to you, type:
 ```
 python run_reduce.py -h
 ```
-For more control over the image processing steps you'll need to review the options in the configuration file, lbcreduce-config.yml. 
+For more control over the image processing steps you'll need to review the options in the configuration file, lbcreduce-config.yml.
 
 ## Explanation of LBCreduce variables and options
 

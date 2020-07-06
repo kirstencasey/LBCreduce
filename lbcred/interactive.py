@@ -14,7 +14,7 @@ affirmative = ['y','Y','yes','Yes']
 negative = ['n','N','no','No']
 default_acceptable = affirmative + negative
 
-def get_input(question, acceptable_responses=default_acceptable, anything_acceptable=False, exit_response='quit', is_dir=False):
+def get_input(question, acceptable_responses=default_acceptable, anything_acceptable=False, exit_response='quit', full_stop = True, is_dir=False):
 
 	# Keep asking for input until acceptable input is entered
 	response = None
@@ -38,8 +38,11 @@ def get_input(question, acceptable_responses=default_acceptable, anything_accept
 		response = input(question)
 
 	# Stop program if desired
-	if response == exit_response:
+	if response == exit_response and full_stop:
 		sys.exit('lbcreduce stopped.')
+
+	elif response == exit_response and not full_stop:
+		response = None
 
 	return response
 
@@ -104,6 +107,7 @@ def initialize_directories(config, check_in_dir=True, check_out_dir=True):
 
 	os.mkdir(os.path.join(out_dir,'midproc'))
 	os.mkdir(os.path.join(out_dir,'plots'))
+	os.mkdir(os.path.join(out_dir,'astrometry'))
 
 	# Update options			################## DO THIS BETTER - IN A DIFFERENT FUNCTION ####################
 	config['image_dir'] = image_dir

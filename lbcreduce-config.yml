@@ -3,14 +3,15 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to reduce.
 
-image_dir : '/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
-out_dir : '/Users/kirstencasey/test_out' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+image_dir : '/Users/kirstencasey/m81_test_in' #'/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
+out_dir : '/Users/kirstencasey/m81_test_out' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 object :  # Object names you want included in image processing (excludes all others). OBJECT keyword in object image headers. (***Currently only works for ONE object***)
 propid : # Proposal ID you want included in image processing (excludes all others). PROPID keyword in object image headers.(***Currently only works for ONE propid***)
 glob_include : '*.fits' # Unix-style filename segment used to include files (eg. '*20191220*')
 exclude :  # Filename segment (NOT UNIX-STYLE) used to exclude files (eg. '_OT.fits'). NOTE THIS IS DIFFERENT FROM THE UNIX-STYLE glob_include!! Do NOT add '*'s to the string to be excluded.
-
+swarp_config : 'config-test.swarp' # Must be located in the LBCreduce project directory
+scamp_ref_cat : 'GSC-2.3' # See Table 1 in the SCAMP documentation for options (https://www.astromatic.net/pubsvn/software/scamp/trunk/doc/scamp.pdf)
 
 ############################### Other Common Options ###############################
 # NOTE: These are other commonly-used options you may find useful to change depending on your needs.
@@ -50,25 +51,32 @@ lbc_blue : 'LBC_BLUE'
 ############################### Image Processing Steps ###############################
 # NOTE: Use these options to decide which image-processing steps LBCreduce will perform.
 
-reduce_objects : False # Always true unless you just want to make master flats/bias/dark images, stack pre-processed images, etc.
+reduce_objects : True # Always true unless you just want to make master flats/bias/dark images, stack pre-processed images, etc.
 flat : True # Perform flat-fielding operations
 overscan : True # Subtract and trim overscan regions (more details on how this will happen in the 'Image Processing Options' section).
-stack : False # Stack images of like-object files after processing
+stack : False # Stack images of like-object files after processing (uses SWarp)
 zero : True # Perform zero frame subtraction on object files
 bias : True # Perform 2D bias subtraction on flat fields
 dark : False # Perform dark subtraction
+astrometry : False # Find an astrometric solution for object images (uses astrometry.net and/or SCAMP)
+
 
 
 ############################### Image Processing Options ###############################
-# NOTE: This section is broken up into FIVE subsections: DEFAULT, OBJECT, FLAT, BIAS, and DARK OPTIONS. This is intended to allow for precise control over how each image is processed.
+# NOTE: This section is broken up into FIVE subsections: DEFAULT, OBJECT, FLAT, BIAS, and DARK OPTIONS.
+#       This is intended to allow for precise control over how each image is processed.
+
 # HOW IT WORKS (!!!!!!!!!! IMPORTANT !!!!!!!!!!) :
-  # At the top of the OBJECT, FLAT, BIAS, and DARK OPTIONS subsections there is a 'use_specified_<imagetyp>_options_for_common_functions' keyword. If this keyword is set to True,
-  # then the options specified in each of those subsections for functions used commonly across image types will be used for processing. If this keyword is set to False,
-  # then the options for those common functions specified under the  DEFAULT OPTIONS subsection will be used instead. If you want to change something common to all images
-  # (e.g. how they are combined), be sure to check the relevent options (e.g. combine_options) in each section.
-  # Options for functions that are NOT common to all images (e.g. how flat field counts are treated, etc.) will be found under the relevant subsection and will be used
-  # regardless of the 'use_specified_<imagetyp>_options_for_common_functions' keyword value. A list of functions treated as 'common functions' can be found below, but
-  # a general rule of thumb is that if it's listed under the DEFAULT subsection, it's regarded as a 'common function' and will therefor be listed under all other subsections.
+  # At the top of the OBJECT, FLAT, BIAS, and DARK OPTIONS subsections there is a 'use_specified_<imagetyp>_options_for_common_functions' keyword.
+  # If this keyword is set to True, then the options specified in each of those subsections for functions used commonly across image types will
+  # be used for processing. If this keyword is set to False, then the options for those common functions specified under the  DEFAULT OPTIONS subsection
+  # will be used instead. If you want to change something common to all images (e.g. how they are combined), be sure to check the relevent options
+  # (e.g. combine_options) in each section.
+  #
+  # Options for functions that are NOT common to all images (e.g. how flat field counts are treated, etc.) will be found under the relevant subsection
+  # and will be used regardless of the 'use_specified_<imagetyp>_options_for_common_functions' keyword value. A list of functions treated as
+  # 'common functions' can be found below, but a general rule of thumb is that if it's listed under the DEFAULT subsection, it's regarded as a
+  # 'common function' and will therefor be listed under all other subsections.
 
 # 'Common' functions keywords: combine_options, overscan_options, find_bestfit_legendre_options, legendre_options, variable_legendre_options
 
@@ -81,40 +89,23 @@ default_options :
     method : 'average'
     weights :
     scale :
-    mem_limit : 16000000000.0
-    clip_extrema : False
-    nlow : 1
-    nhigh : 1
-    minmax_clip : False
-    minmax_clip_min :
-    minmax_clip_max :
     sigma_clip : True
     sigma_clip_low_thresh : 5
     sigma_clip_high_thresh : 5
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
-    dtype :
-    combine_uncertainty_function :
 
   ####### OVERSCAN - DEFAULT ########
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
   overscan_options:
-    overscan_axis :
-    fits_section :
     median : True
     model : 'legendre' # Options: legendre
-    add_keyword : True
 
   # More info: https://docs.astropy.org/en/stable/api/astropy.modeling.polynomial.Legendre1D.html
   legendre_options :
     degree :  2
-    domain :
     window_lower : -1 # Stand-in for original 'window' parameter; a in window=[a,b]
     window_upper : 1 # Stand-in for original 'window' parameter; b in window=[a,b]
-    n_models :
-    model_set_axis :
-    name :
-    meta :
 
   allow_variable_legendre : True
   variable_legendre_options:
@@ -125,8 +116,6 @@ default_options :
     bin_func : 'sigmaclipped_mean' # Options: median, sigmaclipped_mean - Used for binning the overscan region to reduce noise
     sigma_clip_options: # Used when 'bin_func' == 'sigmaclipped_mean'
       sigma : 3
-      sigma_lower :
-      sigma_upper :
       maxiters : 5
       cenfunc : 'median' # Options: median, mean
       stdfunc : 'mad_std' # Options: std, mad_std
@@ -136,6 +125,10 @@ default_options :
 ###################### OBJECT OPTIONS ######################
 use_specified_object_options : True
 
+astrometry_options:
+  use_astrometry.net : True
+  use_scamp : True
+
 object_options :
   ####### COMBINE - OBJECT #######
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.combine.html
@@ -143,40 +136,23 @@ object_options :
     method : 'average'
     weights :
     scale :
-    mem_limit : 16000000000.0
-    clip_extrema : False
-    nlow : 1
-    nhigh : 1
-    minmax_clip : False
-    minmax_clip_min :
-    minmax_clip_max :
     sigma_clip : True
     sigma_clip_low_thresh : 5
     sigma_clip_high_thresh : 5
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
-    dtype :
-    combine_uncertainty_function :
 
   ####### OVERSCAN - OBJECT ########
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
   overscan_options:
-    overscan_axis :
-    fits_section :
     median : True
     model : 'legendre' # Options: legendre
-    add_keyword : True
 
   # More info: https://docs.astropy.org/en/stable/api/astropy.modeling.polynomial.Legendre1D.html
   legendre_options :
     degree :  2
-    domain :
     window_lower : -1 # Stand-in for original 'window' parameter; a in window=[a,b]
     window_upper : 1 # Stand-in for original 'window' parameter; b in window=[a,b]
-    n_models :
-    model_set_axis :
-    name :
-    meta :
 
   allow_variable_legendre : True
   variable_legendre_options:
@@ -187,12 +163,11 @@ object_options :
     bin_func : 'sigmaclipped_mean' # Options: median, sigmaclipped_mean - Used for binning the overscan region to reduce noise
     sigma_clip_options: # Used when 'bin_func' == 'sigmaclipped_mean'
       sigma : 3
-      sigma_lower :
-      sigma_upper :
       maxiters : 5
       cenfunc : 'median' # Options: median, mean
       stdfunc : 'mad_std' # Options: std, mad_std
     save_plot : True
+
 
 ###################### FLAT OPTIONS ######################
 use_specified_flat_options : True
@@ -214,40 +189,23 @@ flat_options :
     method : 'average'
     weights :
     scale : 'inverse_median' # Options: inverse_median
-    mem_limit : 16000000000.0
-    clip_extrema : False
-    nlow : 1
-    nhigh : 1
-    minmax_clip : False
-    minmax_clip_min :
-    minmax_clip_max :
     sigma_clip : True
     sigma_clip_low_thresh : 5
     sigma_clip_high_thresh : 5
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
-    dtype :
-    combine_uncertainty_function :
 
   ####### OVERSCAN - FLAT ########
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
   overscan_options:
-    overscan_axis :
-    fits_section :
     median : True
     model : 'legendre' # Options: legendre
-    add_keyword : True
 
   # More info: https://docs.astropy.org/en/stable/api/astropy.modeling.polynomial.Legendre1D.html
   legendre_options :
     degree :  2
-    domain :
     window_lower : -1 # Stand-in for original 'window' parameter; a in window=[a,b]
     window_upper : 1 # Stand-in for original 'window' parameter; b in window=[a,b]
-    n_models :
-    model_set_axis :
-    name :
-    meta :
 
   allow_variable_legendre : True
   variable_legendre_options:
@@ -258,8 +216,6 @@ flat_options :
     bin_func : 'sigmaclipped_mean' # Options: median, sigmaclipped_mean - Used for binning the overscan region to reduce noise
     sigma_clip_options: # Used when 'bin_func' == 'sigmaclipped_mean'
       sigma : 3
-      sigma_lower :
-      sigma_upper :
       maxiters : 5
       cenfunc : 'median' # Options: median, mean
       stdfunc : 'mad_std' # Options: std, mad_std
@@ -276,40 +232,23 @@ bias_options :
     method : 'average'
     weights :
     scale :
-    mem_limit : 16000000000.0
-    clip_extrema : False
-    nlow : 1
-    nhigh : 1
-    minmax_clip : False
-    minmax_clip_min :
-    minmax_clip_max :
     sigma_clip : True
     sigma_clip_low_thresh : 5
     sigma_clip_high_thresh : 5
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
-    dtype :
-    combine_uncertainty_function :
 
   ####### OVERSCAN - BIAS ########
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
   overscan_options:
-    overscan_axis :
-    fits_section :
     median : True
     model : 'legendre' # Options: legendre
-    add_keyword : True
 
   # More info: https://docs.astropy.org/en/stable/api/astropy.modeling.polynomial.Legendre1D.html
   legendre_options :
     degree :  2
-    domain :
     window_lower : -1 # Stand-in for original 'window' parameter; a in window=[a,b]
     window_upper : 1 # Stand-in for original 'window' parameter; b in window=[a,b]
-    n_models :
-    model_set_axis :
-    name :
-    meta :
 
   allow_variable_legendre : True
   variable_legendre_options:
@@ -320,8 +259,6 @@ bias_options :
     bin_func : 'sigmaclipped_mean' # Options: median, sigmaclipped_mean - Used for binning the overscan region to reduce noise
     sigma_clip_options: # Used when 'bin_func' == 'sigmaclipped_mean'
       sigma : 3
-      sigma_lower :
-      sigma_upper :
       maxiters : 5
       cenfunc : 'median' # Options: median, mean
       stdfunc : 'mad_std' # Options: std, mad_std
@@ -338,40 +275,23 @@ dark_options :
     method : 'average'
     weights :
     scale :
-    mem_limit : 16000000000.0
-    clip_extrema : False
-    nlow : 1
-    nhigh : 1
-    minmax_clip : False
-    minmax_clip_min :
-    minmax_clip_max :
     sigma_clip : True
     sigma_clip_low_thresh : 5
     sigma_clip_high_thresh : 5
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
-    dtype :
-    combine_uncertainty_function :
 
   ####### OVERSCAN - DARK ########
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.subtract_overscan.html
   overscan_options:
-    overscan_axis :
-    fits_section :
     median : True
     model : 'legendre' # Options: legendre
-    add_keyword : True
 
   # More info: https://docs.astropy.org/en/stable/api/astropy.modeling.polynomial.Legendre1D.html
   legendre_options :
     degree :  2
-    domain :
     window_lower : -1 # Stand-in for original 'window' parameter; a in window=[a,b]
     window_upper : 1 # Stand-in for original 'window' parameter; b in window=[a,b]
-    n_models :
-    model_set_axis :
-    name :
-    meta :
 
   allow_variable_legendre : True
   variable_legendre_options:
@@ -382,8 +302,6 @@ dark_options :
     bin_func : 'sigmaclipped_mean' # Options: median, sigmaclipped_mean - Used for binning the overscan region to reduce noise
     sigma_clip_options: # Used when 'bin_func' == 'sigmaclipped_mean'; More info: https://docs.astropy.org/en/stable/api/astropy.stats.sigma_clip.html
       sigma : 3
-      sigma_lower :
-      sigma_upper :
       maxiters : 5
       cenfunc : 'median' # Options: median, mean
       stdfunc : 'mad_std' # Options: std, mad_std

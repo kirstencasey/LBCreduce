@@ -12,10 +12,12 @@ import ccdproc, os, sys, time, shutil, warnings, yaml, random
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.nddata import CCDData
 from astropy.io import fits
+from astropy.io import ascii
 from astropy.table import Column
 import logging
 from .log import logger
 from astropy.modeling import models
+from lbcred import project_dir
 
 
 def setup_logger(level, log_fn=None):
@@ -147,7 +149,7 @@ def bias(bias_type, config, file_info):
 
 			# Save trimmed image
 			out_names.append(os.path.join(config['out_dir'], 'midproc', bias_im['filename'].replace('.fits','_T.fits')))
-			primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc',  bias_im['filename']))[0]
+			primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc',  bias_im['filename']),ignore_blank=True)[0]
 			image_hdu = fits.ImageHDU(data=data_trimmed,header=data_trimmed.header)
 			fits.HDUList([primary_hdu,image_hdu]).writeto(out_names[-1])
 
@@ -173,7 +175,7 @@ def bias(bias_type, config, file_info):
 
 			# Save overscan subtracted, trimmed image
 			out_names.append(os.path.join(config['out_dir'], 'midproc', bias_im['filename'].replace('.fits','_OT.fits')))
-			primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc',  bias_im['filename']))[0]
+			primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc',  bias_im['filename']),ignore_blank=True)[0]
 			image_hdu = fits.ImageHDU(data=data_ot,header=data_ot.header)
 			fits.HDUList([primary_hdu,image_hdu]).writeto(out_names[-1])
 
@@ -252,7 +254,7 @@ def flat(config, file_info):
 		'''
 		# Save calibrated flat
 		out_names.append(os.path.join(config['out_dir'], 'midproc', flat_im['filename'].replace('.fits','_OT.fits')))
-		primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc', flat_im['filename']))[0]
+		primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc', flat_im['filename']),ignore_blank=True)[0]
 		image_hdu = fits.ImageHDU(data=data_ot,header=data_ot.header)
 		fits.HDUList([primary_hdu,image_hdu]).writeto(out_names[-1])
 
@@ -277,7 +279,6 @@ def flat(config, file_info):
 					shutil.copyfile(chip_info[0], master_name)
 					warnings.warn(f'Only one flat to \'combine\' for {master_name}.', AstropyUserWarning)
 					continue
-				print(chip_info)
 				masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **combine_options)
 
 	# Get feedback on master flats
@@ -308,7 +309,11 @@ def process(config, file_info):
 		data = CCDData.read(os.path.join(config['out_dir'], 'midproc',  im['filename']), unit=config['data_units'], hdu=config['ext'])
 		proc_name = os.path.join(out_dir, im['filename'].split('.fits')[0] + '_' + im['object'] + '_')
 		sci_date = data.meta['DATE_OBS'].split('T')[0]
-		fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
+		primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc', im['filename']),ignore_blank=True)[0]
+		image_hdu = fits.ImageHDU(data=data,header=data.header)
+		header = image.combine_headers(primary_hdu, image_hdu)
+		#fits.HDUList([primary_hdu,image_hdu]).writeto(proc_name + '.fits')
+		fits.writeto(proc_name + '.fits', data, header=header)
 
 		# Subtract overscan, trim
 		if config['overscan']:
@@ -321,7 +326,10 @@ def process(config, file_info):
 			data = ccdproc.trim_image(data[xmin:xmax,ymin:ymax])
 			data.meta[config['data_region']] = f'[1:{data.shape[1]},1:{data.shape[0]}]'
 			proc_name += 'OT'
-			fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
+			image_hdu = fits.ImageHDU(data=data,header=data.header)
+			header = image.combine_headers(primary_hdu, image_hdu)
+			#fits.HDUList([primary_hdu,image_hdu]).writeto(proc_name + '.fits')
+			fits.writeto(proc_name + '.fits', data, header=header)
 
 		# Subtract zero frame
 		if config['zero']:
@@ -331,7 +339,10 @@ def process(config, file_info):
 			data = CCDData.subtract(data_temp, zero)
 			data.meta = data_temp.meta
 			proc_name += 'Z'
-			fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
+			image_hdu = fits.ImageHDU(data=data,header=data.header)
+			header = image.combine_headers(primary_hdu, image_hdu)
+			#fits.HDUList([primary_hdu,image_hdu]).writeto(proc_name + '.fits')
+			fits.writeto(proc_name + '.fits', data, header=header)
 
 		# Subtract dark frame
 		if config['dark']:
@@ -341,7 +352,10 @@ def process(config, file_info):
 			data = CCDData.subtract(data_temp, dark)
 			data.meta = data_temp.meta
 			proc_name += 'D'
-			fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
+			image_hdu = fits.ImageHDU(data=data,header=data.header)
+			header = image.combine_headers(primary_hdu, image_hdu)
+			#fits.HDUList([primary_hdu,image_hdu]).writeto(proc_name + '.fits')
+			fits.writeto(proc_name + '.fits', data, header=header)
 
 		# Find the best master flat frame, divide
 		if config['flat']:
@@ -351,26 +365,72 @@ def process(config, file_info):
 			data = CCDData.divide(data_temp, flat)
 			data.meta = data_temp.meta
 			proc_name += 'F'
-			fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
+			image_hdu = fits.ImageHDU(data=data,header=data.header)
+			header = image.combine_headers(primary_hdu, image_hdu)
+			#fits.HDUList([primary_hdu,image_hdu]).writeto(proc_name + '.fits')
+			fits.writeto(proc_name + '.fits', data, header=header)
 
 		# Save image
-		#fits.writeto(proc_name + '.fits', data.data, fits.Header(data.meta))
+		final_name = os.path.join(config['out_dir'], im['filename'].split('.fits')[0] + '_' + im['object'] + '.proc.fits')
+		image_hdu = fits.ImageHDU(data=data,header=data.header)
+		header = image.combine_headers(primary_hdu, image_hdu)
+		#fits.HDUList([primary_hdu,image_hdu]).writeto(final_name)
+		fits.writeto(final_name, data, header=header)
+
+	return
+
+def astrometry(config, file_info):
+	# Get object files
+	obj_ims = file_info[np.where(file_info['imagetyp']==config['object_image_keyword'])]
+	scamp_ref = config['scamp_ref_cat']
+	out_dir = config['out_dir']
+	astrometry_out = os.path.join(out_dir,'astrometry')
+
+	# For each image...
+	for im in obj_ims:
+		base_name = im['filename'].split('.fits')[0] + '_' + im['object']
+		proc_name = os.path.join(out_dir, base_name + '.proc.fits')
+		scamp_cat = os.path.join(astrometry_out, base_name + '_scamp.cat')
+		scamp_config = os.path.join(astrometry_out, base_name + '_scamp.config')
+		xml_out = os.path.join(astrometry_out, f'scamp.{base_name}.xml')
+		# Run through astrometry.net
+		os.system(f'solve-field -i {scamp_cat} -n {scamp_config} -D {astrometry_out} -o {base_name} --scale-units arcsecperpix --scale-low 0.2 --scale-high 0.3 -t 3 {proc_name}') #--ra {} --dec {} --radius {}
+
+		# Run through SCAMP
+		os.system(f'scamp {scamp_cat} -c {scamp_config} -AHEADER_SUFFIX .wcs -ASTREF_CATALOG {scamp_ref} -XML_NAME {xml_out} -CHECKPLOT_DEV PDF')
 
 	return
 
 # Stacking
 def stack(config, file_info):
-	'''
-	Note: talk to Chris and Johnny about this
-	'''
 
-	# Run through astrometry.net
+	# Get object files
+	obj_ims = file_info[np.where(file_info['imagetyp']==config['object_image_keyword'])]
+	out_dir = config['out_dir']
 
-	# Run through SCAMP (first SDSS/Pan-STARRS catalog then Gaia)
-
-	# Re-combine chips
+	# Find images to combine
+	swarp_config = os.path.join(project_dir,config['swarp_config'])
+	objects = np.unique(obj_ims['object'])
+	filts = np.unique(obj_ims['filter'])
 
 	# Run through SWarp
+	for obj in objects:
+		get_objs = obj_ims[np.where(obj_ims['object']==obj)]
+
+		for filt in filts:
+			get_filts = get_objs['filename'][np.where(get_objs['filter']==filt)]
+			imgs_to_combine = []
+			for file in get_filts:
+				imgs_to_combine.append(os.path.join(out_dir, 'astrometry', file.split('.fits')[0] + f'_{obj}.new'))
+			#print(imgs_to_combine)
+			img_list_filename = os.path.join(out_dir, f'{obj}_{filt}.dat')
+			with open(img_list_filename, 'w') as f:
+			    for img_name in imgs_to_combine:
+			        f.write(f'{img_name}\n')
+			out_name = os.path.join(out_dir,f'{obj}_{filt}.fits')
+			out_name_weight = os.path.join(out_dir,f'{obj}_{filt}.weight.fits')
+			out_name_xml = os.path.join(out_dir,f'swarp.{obj}_{filt}.xml')
+			os.system(f'swarp @{img_list_filename} -c {swarp_config} -IMAGEOUT_NAME {out_name} -WEIGHTOUT_NAME {out_name_weight} -WRITE_FILEINFO Y -XML_NAME {out_name_xml} -HEADER_SUFFIX _scamp.head -VERBOSE_TYPE FULL')
 
 	return
 
