@@ -16,26 +16,26 @@ warnings.simplefilter('ignore', category=FITSFixedWarning)
 warnings.simplefilter('ignore', category=VerifyWarning)
 
 
-def fetch_files(path, band='R', exptime_range=[0, 50], 
+def fetch_files(path, band='R', exptime_range=[0, 50],
                 name_must_contain='M81blob.proc'):
     files = glob(os.path.join(path, f'lbc{band.lower()}*{name_must_contain}*'))
     files = [f for f in files if\
              float(fits.getheader(f)['EXPTIME']) > exptime_range[0] if\
              float(fits.getheader(f)['EXPTIME']) < exptime_range[1]]
     # sort files by time
-    # NOTE: This assumes the file 
+    # NOTE: This assumes the file
     # names contain the exposure number
-    files.sort() 
+    files.sort()
     return files
 
 
 @utils.func_timer
-def register_images(data_path, out_path, center, tmp_path, 
-                    bandpass, index_path=None, ref_cat=None, 
+def register_images(data_path, out_path, center, tmp_path,
+                    bandpass, index_path=None, ref_cat=None,
                     output_dim=[2000, 2000], pixscale=0.226,
                     make_plots=False):
 
-    # fetch reference catalog if necessary 
+    # fetch reference catalog if necessary
     if ref_cat is None:
         fn =  f'panstarrs-{center[0]:.1f}-{center[1]:.1f}.csv'
         fn = os.path.join(out_path, fn)
@@ -52,7 +52,7 @@ def register_images(data_path, out_path, center, tmp_path,
                              default_query_template.\
                              replace('10', '16').\
                              replace('23', '22')
-            ref_cat = panstarrs_tap.quey_region(*center, radius=0.25, 
+            ref_cat = panstarrs_tap.quey_region(*center, radius=0.25,
                                                 query_template=query_template)
             ref_cat.rename_column('raMean', 'ra')
             ref_cat.rename_column('decMean', 'dec')
@@ -78,17 +78,20 @@ def register_images(data_path, out_path, center, tmp_path,
 
         astrom = []
         logger.start_tqdm()
+
         # run solve-field on each image
         for fn in tqdm(files):
             logger.info('Solving field for ' + fn)
-            solution = solve_field(fn, index_path=index_path, 
+            solution = solve_field(fn, index_path=index_path,
                                    tmp_path=tmp_path,
-                                   target_radec=center, 
-                                   search_radius=0.5, 
+                                   target_radec=center,
+                                   search_radius=0.5,
                                    identifier='OBJECT')
-            cat = extract_bright_stars(fn)
-            check = check_astrometric_solution(ref_cat, 
-                                               header=solution.header, 
+            fn_base = fn.split('/')[-1].split('.proc.fits')[0]
+            cat_fn = f'/Users/kirstencasey/blob/{fn_base}.cat'
+            cat = extract_bright_stars(fn,catalog_path=cat_fn)
+            check = check_astrometric_solution(ref_cat,
+                                               header=solution.header,
                                                cat=cat, max_sep=1)
             tweak = TweakWCS(solution.header, check.cat_match, check.ref_match)
             tweak.optimize()
@@ -98,13 +101,13 @@ def register_images(data_path, out_path, center, tmp_path,
             if make_plots:
                 fig_dir = os.path.join(frame_out, 'diagnostic-plots')
                 utils.mkdir_if_needed(fig_dir)
-                check = check_astrometric_solution(ref_cat, 
-                                                   header=solution.header, 
-                                                   cat=cat, max_sep=1, 
-                                                   make_plot=make_plots, 
-                                                   xlim=[-0.3, 0.3], 
+                check = check_astrometric_solution(ref_cat,
+                                                   header=solution.header,
+                                                   cat=cat, max_sep=1,
+                                                   make_plot=make_plots,
+                                                   xlim=[-0.3, 0.3],
                                                    ylim=[-0.3, 0.3])
-                fig_fn = os.path.basename(fn).replace('.fits', 
+                fig_fn = os.path.basename(fn).replace('.fits',
                                                       '_check_wcs.png')
                 check.fig.savefig(os.path.join(fig_dir, fig_fn), dpi=250)
         logger.end_tqdm()
@@ -113,7 +116,7 @@ def register_images(data_path, out_path, center, tmp_path,
         logger.info(f'Registering and writing {ftype} frames')
         for fn, sol in zip(files, astrom):
             resamp = improc.resample_image(
-                fn, center[0], center[1], pixscale, args.output_dim[0], 
+                fn, center[0], center[1], pixscale, args.output_dim[0],
                 args.output_dim[1], sol.fitsio_header)
             header = fits.getheader(fn)
             for k, v in resamp.wcs.to_header().items():
@@ -127,9 +130,9 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
 
-    parser.add_argument('-d', '--data-path', required=True, 
+    parser.add_argument('-d', '--data-path', required=True,
                         help='path to data, which have had basic reductions')
-    parser.add_argument('-o', '--out-path', required=True, 
+    parser.add_argument('-o', '--out-path', required=True,
                         help='send all output here')
     parser.add_argument('-c', '--center', type=float, nargs=2, required=True,
                         help='central ra and dec')
@@ -137,7 +140,7 @@ if __name__ == '__main__':
                         help='temporary path for intermediate steps')
     parser.add_argument('-b', '--bandpass', default='R')
     parser.add_argument('-r', '--ref-cat', help='reference catalog file name')
-    parser.add_argument('--output-dim', default=[1500, 2000], nargs=2, 
+    parser.add_argument('--output-dim', default=[1500, 2000], nargs=2,
                         type=float, help='output image dimensions')
     parser.add_argument('--index-path', default=None,
                         help='path to astrometry.net index files')
