@@ -141,10 +141,11 @@ def run(path_or_pixels, catalog_path=None, config_path=default_config,
         params = default_params.copy()
         for par in extra_params:
             p = par.upper()
-            if p not in all_param_names:
+            _p = p[:p.find('(')] if p.find('(') > 0 else p
+            if _p not in all_param_names:
                 msg = '{} is not a valid SExtractor param -> we will ignore it!'
                 logger.warning(msg.format(p))
-            elif p in default_params:
+            elif _p in default_params:
                 msg = '{} is a default parameter -> No need to add it!'
                 logger.warning(msg.format(p))
             else:
