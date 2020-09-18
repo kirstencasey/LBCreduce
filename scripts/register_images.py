@@ -1,9 +1,11 @@
 import os
 from glob import glob
 import numpy as np
+from shutil import copyfile
 from astropy.io import fits
 from astropy.table import Table
-from lbcred.detection import extract_bright_stars
+from astropy.modeling import models, fitting
+from lbcred.detection import extract_bright_stars, sextractor_sky_model
 from lbcred.astrometry import solve_field, check_astrometric_solution, TweakWCS
 from lbcred import improc, utils, logger
 
@@ -31,13 +33,13 @@ def fetch_files(path, band='R', exptime_range=[0, 50],
 
 @utils.func_timer
 def register_images(data_path, out_path, center, tmp_path,
-                    bandpass, index_path=None, ref_cat=None,
-                    output_dim=[2000, 2000], pixscale=0.226,
-                    make_plots=False):
+                    bandpass, subtract_back, back_model, stack, stack_type,
+                    index_path=None, ref_cat=None, output_dim=[4000, 6000],
+                    pixscale=0.226, make_plots=False):
 
     # fetch reference catalog if necessary
     if ref_cat is None:
-        fn =  f'panstarrs-{center[0]:.1f}-{center[1]:.1f}.csv'
+        fn =  f'panstarrs-{center[0]:.1f}-{center[1]:.1f}.dat'
         fn = os.path.join(out_path, fn)
         # if has been fetched previously, load local copy
         if os.path.isfile(fn):
@@ -61,16 +63,27 @@ def register_images(data_path, out_path, center, tmp_path,
         # if you passed a file name, load that
         ref_cat = Table.read(ref_cat)
 
+    if subtract_back:
+        back_out = os.path.join(out_path, 'back_subtracted')
+        utils.mkdir_if_needed(back_out)
+        all_files = glob(os.path.join(data_path, f'lbc{bandpass.lower()}*M81blob.proc.fits'))
+        for fi in all_files:
+            fi_base = fi.split('/')[-1].replace('M81blob.proc.fits','backsub_M81blob.proc.fits')
+            copyfile(fi, os.path.join(back_out,fi_base))
+        data_path = back_out
+
     # short exposures for finding the astrometric solution
     files_cali = fetch_files(data_path, bandpass, [0, 50])
+    num_cali = len(files_cali)
 
     # long exposures for making science images
     files_sci = fetch_files(data_path, bandpass, [200, 500])
+    num_sci = len(files_sci)
 
-    logger.info(f'Solving astrometry for {bandpass}-band calibration frames')
+    logger.info(f'Solving astrometry for {bandpass}-band frames')
 
     # loop over file types (calibration and science)
-    for ftype, files in zip(['CALI', 'SCI'], [files_cali, files_sci]):
+    for ftype, files, num in zip(['CALI', 'SCI'], [files_cali, files_sci], [num_cali, num_sci]):
         logger.info(f'Solving astrometry for {bandpass}-band {ftype} frames')
 
         frame_out = os.path.join(out_path, ftype.lower())
@@ -81,6 +94,33 @@ def register_images(data_path, out_path, center, tmp_path,
 
         # run solve-field on each image
         for fn in tqdm(files):
+
+            if subtract_back:
+                logger.info('Subtracting background for ' + fn)
+                sky = sextractor_sky_model(fn)
+
+                if back_model == 'plane':
+                    p_init = models.Polynomial2D(degree=1)
+                    fit_p = fitting.LinearLSQFitter()
+                    y, x = np.mgrid[:sky.shape[0], :sky.shape[1]]
+                    p = fit_p(p_init,x,y,sky)
+
+                    with fits.open(fn, mode='update') as hdul:
+                        hdul[0].data -= p(x,y)
+                        hdul[0].header['BACKSUB_TYPE'] = 'Polynomial2D, degree=1'
+                        for i in range(len(p.param_names)):
+                            hdul[0].header[f'BACKSUB_PARAMS_{i}'] = p.param_names[i]
+                            hdul[0].header[f'BACKSUB_PARAMVALS_{i}'] = p.parameters[i]
+                        hdul.close()
+
+                if back_model == 'median':
+                    median = np.median(sky)
+                    with fits.open(fn, mode='update') as hdul:
+                        hdul[0].data -= median
+                        hdul[0].header['BACKSUB_TYPE'] = 'median'
+                        hdul[0].header['BACKSUB_VAL'] = median
+                        hdul.close()
+
             logger.info('Solving field for ' + fn)
             solution = solve_field(fn, index_path=index_path,
                                    tmp_path=tmp_path,
@@ -88,7 +128,8 @@ def register_images(data_path, out_path, center, tmp_path,
                                    search_radius=0.5,
                                    identifier='OBJECT')
             fn_base = fn.split('/')[-1].split('.proc.fits')[0]
-            cat_fn = f'/Users/kirstencasey/blob/{fn_base}.cat'
+            utils.mkdir_if_needed(os.path.join(frame_out,'catalogs'))
+            cat_fn = os.path.join(frame_out,'catalogs',f'{fn_base}.cat')
             cat = extract_bright_stars(fn,catalog_path=cat_fn)
             check = check_astrometric_solution(ref_cat,
                                                header=solution.header,
@@ -110,10 +151,13 @@ def register_images(data_path, out_path, center, tmp_path,
                 fig_fn = os.path.basename(fn).replace('.fits',
                                                       '_check_wcs.png')
                 check.fig.savefig(os.path.join(fig_dir, fig_fn), dpi=250)
+
+
         logger.end_tqdm()
 
         # resample images
         logger.info(f'Registering and writing {ftype} frames')
+        reg_files = []
         for fn, sol in zip(files, astrom):
             resamp = improc.resample_image(
                 fn, center[0], center[1], pixscale, args.output_dim[0],
@@ -124,6 +168,34 @@ def register_images(data_path, out_path, center, tmp_path,
             out_fn = os.path.basename(fn).replace('.fits', '_reg.fits')
             out_fn = os.path.join(frame_out, out_fn)
             fits.writeto(out_fn, resamp.pixels, header, overwrite=True)
+            reg_files.append(out_fn)
+
+        # stack images
+        if stack:
+            logger.info(f'Stacking and writing {ftype} frames')
+
+            stack_data = np.ndarray((num,output_dim[1],output_dim[0]))
+            exposure_map = np.zeros((output_dim[1],output_dim[0]))
+            im_num = 0
+            logger.start_tqdm()
+            for fn in tqdm(reg_files):
+                hdul = fits.open(fn)
+                exptime = hdul[0].header['EXPTIME']
+                stack_data[im_num] = hdul[0].data
+                ind = np.nonzero(hdul[0].data)
+                exposure_map[ind] += exptime
+                hdul.close()
+                im_num+=1
+            logger.end_tqdm()
+            # find median image
+            if stack_type == 'median':
+                stacked = np.median(stack_data,axis=0)
+
+            hdu = fits.PrimaryHDU(stacked)
+            hdu.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_{stack_type}stack.fits'),overwrite=True)
+            hdu_exp = fits.PrimaryHDU(exposure_map)
+            hdu_exp.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_{stack_type}stack_exposuremap.fits'),overwrite=True)
+
 
 
 if __name__ == '__main__':
@@ -139,8 +211,14 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--tmp-path', default='/tmp',
                         help='temporary path for intermediate steps')
     parser.add_argument('-b', '--bandpass', default='R')
+    parser.add_argument('--subtract-back', default=True)
+    parser.add_argument('--back-model', default='plane',
+                        help='background model type (median, plane)')
+    parser.add_argument('-s','--stack-images', default=True)
+    parser.add_argument('--stack-type', default='median',
+                        help='stacking type (median, sigclipmean)')
     parser.add_argument('-r', '--ref-cat', help='reference catalog file name')
-    parser.add_argument('--output-dim', default=[1500, 2000], nargs=2,
+    parser.add_argument('--output-dim', default=[3000, 5500], nargs=2,
                         type=float, help='output image dimensions')
     parser.add_argument('--index-path', default=None,
                         help='path to astrometry.net index files')
@@ -158,6 +236,10 @@ if __name__ == '__main__':
         center=args.center,
         tmp_path=args.tmp_path,
         bandpass=args.bandpass,
+        subtract_back=args.subtract_back,
+        back_model=args.back_model,
+        stack=args.stack_images,
+        stack_type=args.stack_type,
         ref_cat=args.ref_cat,
         index_path=args.index_path,
         output_dim=args.output_dim,

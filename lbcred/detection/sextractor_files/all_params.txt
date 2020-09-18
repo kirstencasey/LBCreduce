@@ -8,7 +8,7 @@ MAGERR_ISO
 FLUX_ISOCOR              
 FLUXERR_ISOCOR           
 MAG_ISOCOR               
-MAGERR_ISOCOR            
+MAGERR_ISOCOR          
 FLUX_APER                
 FLUXERR_APER             
 MAG_APER                 
@@ -73,8 +73,8 @@ X_MAMA
 Y_MAMA                   
 ALPHA_SKY                
 DELTA_SKY                
-ALPHA_J000              
-DELTA_J000              
+ALPHA_J2000              
+DELTA_J2000              
 ALPHA_B1950              
 DELTA_B1950              
 X_IMAGE                 
