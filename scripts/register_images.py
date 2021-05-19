@@ -99,6 +99,7 @@ def register_images(data_path, out_path, center, tmp_path,
                 logger.info('Subtracting background for ' + fn)
                 sky = sextractor_sky_model(fn)
 
+
                 if back_model == 'plane':
                     p_init = models.Polynomial2D(degree=1)
                     fit_p = fitting.LinearLSQFitter()
@@ -111,8 +112,27 @@ def register_images(data_path, out_path, center, tmp_path,
                         for i in range(len(p.param_names)):
                             hdul[0].header[f'BACKSUB_PARAMS_{i}'] = p.param_names[i]
                             hdul[0].header[f'BACKSUB_PARAMVALS_{i}'] = p.parameters[i]
+                            hdul[0].header['BACKSUB_MEDIAN'] = np.median(p(x,y))
                         hdul.close()
+                '''
+                if back_model == 'plane':
+                    p_init = models.Planar2D()
+                    fit_p = fitting.LinearLSQFitter()
+                    #y, x = np.mgrid[:sky.shape[0], :sky.shape[1]]
+                    print(sky.shape)
+                    y = np.arange(sky.shape[1])
+                    x = range(sky.shape[0])
+                    p = fit_p(p_init,x,y,sky)
 
+                    with fits.open(fn, mode='update') as hdul:
+                        hdul[0].data -= p(x,y)
+                        hdul[0].header['BACKSUB_TYPE'] = 'Planar2D'
+                        for i in range(len(p.param_names)):
+                            hdul[0].header[f'BACKSUB_PARAMS_{i}'] = p.param_names[i]
+                            hdul[0].header[f'BACKSUB_PARAMVALS_{i}'] = p.parameters[i]
+                        hdul[0].header['BACKSUB_MEDIAN'] = np.median(p(x,y))
+                        hdul.close()
+                '''
                 if back_model == 'median':
                     median = np.median(sky)
                     with fits.open(fn, mode='update') as hdul:
@@ -162,12 +182,17 @@ def register_images(data_path, out_path, center, tmp_path,
             resamp = improc.resample_image(
                 fn, center[0], center[1], pixscale, args.output_dim[0],
                 args.output_dim[1], sol.fitsio_header)
-            header = fits.getheader(fn)
-            for k, v in resamp.wcs.to_header().items():
-                header[k] = v
+
+            good_keys = ['EXTNAME','DATE_OBS','BLANK','GAIN','RDNOISE','SATURATE','EXPTIME','TEXPTIME','OBJECT','MJD_OBS','UTC_OBS','LST_OBS','PIXSIZE','FILTER','IMAGETYP','CCDSUM','LBCBIN','LBCSPRED','LBCBACK','CCDTEM','LBCOBFIL','FILTEOFF','SUBTRACT_OVERSCAN','TRIM_IMAGE','ORIGIN','FILENAME','OBS_ID','PROPID','OS_NUM','LBCOBID','LBCOBNAM','PARTNER','PI_NAME','AIRMASS','LBTLAT','LBTLONG','LBTELEV','PIXSCAL','DITHSEQ','DITHOFFX','DITHOFFY','TELESCOP','INSTRUME','LBCFWHM','LBTPRES','LBTRHUM','LBTTEMP','LBTWNDIR','LBTWNSPD','GUISTAT','DETECTOR','LBCNCHIP','INSPRE','DETSWV','MIRRORX','MIRRORY','MIRRORZ','MIRRORRX','MIRRORRY','MIRRORRZ','Z4','Z5','Z6','Z7','Z8','Z11','Z22','BACKSUB_TYPE','BACKSUB_PARAMS_0','BACKSUB_PARAMVALS_0','BACKSUB_PARAMS_1','BACKSUB_PARAMVALS_1','BACKSUB_PARAMS_2','BACKSUB_PARAMVALS_2','BACKSUB_MEDIAN']
+            header_old = fits.getheader(fn)
+            header_new = resamp.wcs.to_header()
+            for k, v in header_old.items():
+                if k in good_keys:
+                    header_new[k] = v
+
             out_fn = os.path.basename(fn).replace('.fits', '_reg.fits')
             out_fn = os.path.join(frame_out, out_fn)
-            fits.writeto(out_fn, resamp.pixels, header, overwrite=True)
+            fits.writeto(out_fn, resamp.pixels, header_new, overwrite=True)
             reg_files.append(out_fn)
 
         # stack images
@@ -178,6 +203,7 @@ def register_images(data_path, out_path, center, tmp_path,
             exposure_map = np.zeros((output_dim[1],output_dim[0]))
             im_num = 0
             logger.start_tqdm()
+
             for fn in tqdm(reg_files):
                 hdul = fits.open(fn)
                 exptime = hdul[0].header['EXPTIME']
@@ -194,7 +220,7 @@ def register_images(data_path, out_path, center, tmp_path,
             hdu = fits.PrimaryHDU(stacked)
             hdu.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_{stack_type}stack.fits'),overwrite=True)
             hdu_exp = fits.PrimaryHDU(exposure_map)
-            hdu_exp.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_{stack_type}stack_exposuremap.fits'),overwrite=True)
+            hdu_exp.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_exposuremap.fits'),overwrite=True)
 
 
 

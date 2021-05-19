@@ -18,6 +18,9 @@ import logging
 from .log import logger
 from astropy.modeling import models
 from lbcred import project_dir
+from scipy.ndimage import gaussian_filter
+import matplotlib.pyplot as plt
+from lbcred.detection import sextractor, routines
 
 
 def setup_logger(level, log_fn=None):
@@ -40,7 +43,7 @@ def setup_logger(level, log_fn=None):
     logger.setLevel(level.upper())
 
 def inv_median(arr):
-	return 1/np.median(arr)
+	return 1/np.ma.median(arr)
 
 def initialize_config(config_filename, input_options = {}):
 	# Open and read config file
@@ -219,6 +222,7 @@ def flat(config, file_info):
 	# Loop through files to calibrate flats (subtract bias, trim overscan):
 	for flat_im in processed_flats_info:
 		# Get data
+		print('~~~~~~~~~~~~~~~~FLATS: ',flat_im['filename'])
 		data = CCDData.read(os.path.join(config['out_dir'], 'midproc',  flat_im['filename']), unit=config['data_units'], hdu=config['ext'])
 		dates.append(data.meta['DATE_OBS'].split('T')[0])
 
@@ -233,6 +237,8 @@ def flat(config, file_info):
 		data_ot = ccdproc.trim_image(data_o[xmin:xmax,ymin:ymax])
 		data_ot.meta[config['data_region']] = f'[1:{data_ot.shape[1]},1:{data_ot.shape[0]}]'
 
+		# Replace dead pixels
+		data_ot, num_dead_pixels = image.replace_dead_pixels(data_ot, padding=1, dead_value=0)
 
 		'''
 		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])  ############################# Use bias or overscan??? ################
@@ -263,6 +269,7 @@ def flat(config, file_info):
 	# Make master flat for each filter, day
 	filts = np.unique(processed_flats_info['filter'])
 	dates = np.unique(np.asarray(dates))
+	print('\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~BEGIN PROCESSING MASTERFLATS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
 	for filt in filts:
 		flats_to_combine = processed_flats_info['filename'][np.where(processed_flats_info['filter']==filt)].copy()
 		for day in dates:
@@ -279,7 +286,66 @@ def flat(config, file_info):
 					shutil.copyfile(chip_info[0], master_name)
 					warnings.warn(f'Only one flat to \'combine\' for {master_name}.', AstropyUserWarning)
 					continue
-				masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **combine_options)
+
+				chip_ccd_objs = []
+				for file in chip_info:
+					ccd_data = CCDData.read(file, unit=config['data_units'], hdu=config['ext'])
+					chip_ccd_objs.append(ccd_data)
+
+				# Make masked median
+				combiner = ccdproc.Combiner(chip_ccd_objs)
+				print('Scaling...')
+				if combine_options['scale'] is not None:
+					combiner.scaling = combine_options['scale']
+				print('Done scaling.')
+
+				all_masks = np.zeros(combiner.data_arr.mask.shape).astype(bool)
+				for idx in range(len(combiner.data_arr.mask)):
+
+					cat = sextractor.run(np.asarray(combiner.data_arr[idx]), DETECT_MINAREA=3, DETECT_THRESH=5, PIXEL_SCALE=0.2255)
+					star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
+					cat = cat[cat.to_pandas().query(star_query).index.values]
+
+					star_mask = routines.create_mask_from_cat(cat, combiner.data_arr[idx].shape, mask_radius_factor=2.0, mask_fn=None)
+					all_masks[idx] = star_mask
+
+				combiner.data_arr.mask = all_masks
+
+				masterflat = combiner.median_combine()
+
+				# Save masterflat
+				masterflat = masterflat.to_hdu()
+				print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+				masterflat.writeto(master_name)
+
+
+				'''
+				# https://ccdproc.readthedocs.io/en/latest/image_combination.html
+				chip_ccd_objs = []
+				for file in chip_info:
+					chip_ccd_objs.append(CCDData.read(file, unit=config['data_units'], hdu=config['ext']))
+				print('\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~chip_ccd_objs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
+				combiner = ccdproc.Combiner(chip_ccd_objs)
+				print('Scaling...')
+				if combine_options['scale'] is not None:
+					combiner.scaling = combine_options['scale']
+				print('Done scaling.')
+
+				combiner.sigma_clipping(low_thresh=combine_options['sigma_clip_low_thresh'], high_thresh=combine_options['sigma_clip_high_thresh'], func=combine_options['sigma_clip_func'], dev_func=combine_options['sigma_clip_dev_func'])
+
+				all_masks = np.zeros(combiner.data_arr.mask.shape).astype(bool)
+				for idx in range(len(combiner.data_arr.mask)):
+					mask = combiner.data_arr.mask[idx]
+					mask = (gaussian_filter(mask.astype(float), sigma=4.0, mode='constant', cval=1.0)).astype(bool)
+					all_masks[idx] = mask
+				combiner.data_arr.mask = all_masks
+
+				masterflat = combiner.average_combine()
+				masterflat = masterflat.to_hdu()
+				print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+				masterflat.writeto(master_name)
+				#masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **combine_options)
+				'''
 
 	# Get feedback on master flats
 

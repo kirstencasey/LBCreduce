@@ -348,3 +348,35 @@ def find_best_overscan_legendre_model(overscan, image_info, legendre_options, ma
 		plt.close()
 
 	return best_model
+
+
+def replace_dead_pixels(image_pixels, padding=1, dead_value=0):
+    """
+    Replace dead pixels in an image with the median of their surrounding
+    pixel values. (Watch out for edges!)
+    Parameters
+    ----------
+    image_pixels : ndarray
+        Image as a numpy array.
+    padding : int
+        Sets the size of the region in which to compute the median value of
+        "nearby" pixels.
+    Returns
+    -------
+    image_pixels : ndarray
+        The image, with dead pixels replaced.
+    num_dead_pixels : int
+        The number of dead pixels replaced.
+    """
+    padding = int(padding)
+    dead_pixel_indices = np.argwhere(image_pixels==dead_value)
+    num_dead_pixels = len(dead_pixel_indices)
+    for ind in dead_pixel_indices:
+        row, col = ind
+        min_row = np.max([0, row - padding])
+        max_row = np.min([row + padding + 1, image_pixels.shape[0]])
+        min_col = np.max([0, col - padding])
+        max_col = np.min([col+padding+1, image_pixels.shape[1]])
+        med_value = np.median(image_pixels[min_row:max_row, min_col:max_col])
+        image_pixels[row, col] = med_value
+    return image_pixels, num_dead_pixels

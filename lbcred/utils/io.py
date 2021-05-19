@@ -12,6 +12,8 @@ try:
     import cPickle as pickle
 except:
     import pickle
+from collections import OrderedDict
+from pymfit import model
 
 
 __all__ = [
@@ -162,7 +164,7 @@ def pickle_data(filename, data, warn_overwrite=True):
     pkl_file.close()
 
 
-def temp_fits_file(path_or_pixels, tmp_path='/tmp', run_label=None, 
+def temp_fits_file(path_or_pixels, tmp_path='/tmp', run_label=None,
                    prefix='tmp',  header=None):
     is_str = type(path_or_pixels) == str or type(path_or_pixels) == np.str_
     if is_str and header is None:
@@ -206,3 +208,59 @@ def write_pixels(file_name, pixels, header=None):
         logger.warning(file_name + ' exists -- will overwrite')
     logger.debug('Writing ' + file_name)
     fits.writeto(file_name, pixels, header=header, overwrite=True)
+
+def rename_fits_file(old_fn, new_fn, delete_old=False, overwrite=False):
+    hdu = fits.open(old_fn)
+    hdu.writeto(new_fn, overwrite=overwrite)
+    hdu.close()
+    if delete_old: os.remove(old_fn)
+    return
+
+# Adapted from Johnny's pymfitter read_results function
+def read_results(filename, models):
+    file = open(filename, 'r')
+    lines = file.readlines()
+    file.close()
+    comments = [l for l in lines if l[0]=='#']
+    params = [l for l in lines if l[0] != '#' if l[:2] != '\n'\
+                               if l[0] != 'F' if l[:2] != 'X0'\
+                               if l[:2] != 'Y0']
+    cen_text = [l for l in lines if l[0] != '#'\
+                                 if (l[:2] == 'X0' or l[:2] == 'Y0')]
+    centers = []
+
+    for i in range(len(cen_text)//2):
+        j=i*2
+        _, x0, _, _, xerr = cen_text[j].split()
+        _, y0, _, _, yerr = cen_text[j+1].split()
+        pos_list = [float(x0), float(y0), float(xerr), float(yerr)]
+        centers.append(pos_list)
+
+    model_params = OrderedDict()
+    for m in models:
+        model_params[m] = model.param_names[m]
+
+    bestfit_params = OrderedDict()
+    par_num = 0
+    for i in range(len(models)):
+        bestfit_params[f'comp_{i+1}'] = {}
+        bestfit_params[f'comp_{i+1}']['function'] = models[i]
+        bestfit_params[f'comp_{i+1}']['X0'] = centers[i][0]
+        bestfit_params[f'comp_{i+1}']['Y0'] = centers[i][1]
+        bestfit_params[f'comp_{i+1}']['X0_err'] = centers[i][2]
+        bestfit_params[f'comp_{i+1}']['Y0_err'] = centers[i][3]
+
+        for param_name in model_params[models[i]]:
+            name, val = params[par_num].split()[:2]
+            err = params[par_num].split()[-1]
+            assert name == param_name
+            bestfit_params[f'comp_{i+1}'].update({param_name: float(val)})
+            bestfit_params[f'comp_{i+1}'].update({param_name+'_err': float(err)})
+            par_num += 1
+
+    reduced_chisq = [c for c in comments if
+                     c.split()[1] == 'Reduced'][0].split()[-1]
+    if reduced_chisq != 'none':
+        bestfit_params['reduced_chisq'] = float(reduced_chisq)
+
+    return bestfit_params

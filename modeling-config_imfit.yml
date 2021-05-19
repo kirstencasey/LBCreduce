@@ -1,0 +1,180 @@
+############## Imfit Modeling Parameters ##############
+
+############################### Directory and File Selection Options ###############################
+# NOTE: This section covers important information about how LBCreduce will find the images you want to model.
+
+image_dir : '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Where all the files needed for image reduction are located
+out_dir :  '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory.
+run_imfit : True
+run_artpop : True # If True uses ArtPop Options to create and save ArtPop models (filename will be artpop_model_fn under Color Options), only injects them into image if inject_artpop_model is True
+inject_artpop_model : True # If True and run_artpop is False, you must supply artpop_model_fn under the Color Options.
+random_inject_position : False
+exclude_positions_mask : 'random_inject_mask.fits'
+use_legacy_survey : False # If True get images/psfs from Legacy Survey for artpop/imfit modeling. See Legacy Survey options under ArtPop Options
+check_image_size : False
+smooth_images : False
+
+############################### Color Options ###############################
+# NOTE: 'color1' should typically be the redder of the two if both colors are used. Ex. color1->'r' and color2->'b'.
+color1 :
+  name : 'r'
+  image_fn : 'blank_r.fits' #'random_position_r.fits'
+  psf : 'lbcr.median_psf_298.fits'
+  zpt : 27.93251516544001 #27.519607685426692
+  extinction : 0.053
+  color_term : 0. #-0.0950107466670183 #-0.2615782257257808
+  artpop_model_fn : artpop_model_r.fits #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
+  artpop_band : 'Bessell_R'
+  artpop_mag :  #14.76083716950836 #compact:14.070269674315767 #14.680690474621638 # 14.736207799615263
+  artpop_sbfmag : #26.734176700344815
+  efficiency : 1.0 #0.278
+  sky : 8781.151679569371 # For imfit if variance image is not given #888.818468786744
+  sky_sb : 21.0103 #21.3103 # For artpop (should be in AB mag system); turn this on/off under ArtPop Options
+  masking_imfit:
+    thresh : 4.5
+    kern_sig : 1.0
+    backsize : 15
+    obj_rmin : 1000
+    grow_obj : 9.0
+    seg_rmin : 2000.0
+
+color2 :
+  name : 'b'
+  image_fn : 'blank_b.fits' # 'random_position_b.fits'
+  psf : 'lbcb.median_psf_298.fits'
+  zpt : 28.1373 #27.959624676687373
+  extinction : 0.091
+  color_term : 0. #0.13540282725495237 #-0.03140386488100926
+  artpop_model_fn : artpop_model_b.fits #'mean_stack_cutout_sersic_tiltedplane_model_b_2_Sersic.fits'
+  artpop_band : 'Bessell_B'
+  artpop_mag : #16.019337153610394 #compact:15.306299503261188  #15.901909169267238 #15.994602963128841
+  efficiency : 1.0 #0.256
+  sky : 1770.081472721776 # For imfit if variance image is not given #178.7402736559787
+  sky_sb : 22.7025 #23.0025 # For artpop (should be in AB mag system); turn this on/off under ArtPop Options
+  masking_imfit:
+    thresh : 4.5
+    kern_sig : 1.0
+    backsize : 15
+    obj_rmin : 1000
+    grow_obj : 9.0
+    seg_rmin : 2000.0
+
+combine_imfit_masks : True
+
+############################### Other Common Options ###############################
+# NOTE: These are other commonly-used options you may find useful to change depending on your needs.
+
+overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
+pixscale : 0.22400 # arcseconds/pixel
+exposure_time : 300.281 # 30.262 # seconds
+gain : 1.75
+ext : 0
+logger_level : 'INFO' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
+log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
+
+
+############################### Imfit Options ###############################
+# NOTE:
+
+# Imfit modeling options
+readnoise : 12.0
+ncombined : 10
+include_exposure_time : False # Should only be True if images are in ADU/sec/pixel, False if ADU/pixel
+variance_image : flat_variance_image.fits
+
+imfit_steps:
+  step1 :
+    color : 'b' # Must correspond to color name under Color Options
+    functions : 'Sersic' # Separate using comma
+  step2 :
+    color : 'r' # Must correspond to color name under Color Options
+    functions : 'Sersic' # Separate using comma
+    fix_struc_step : 'step1'
+
+
+
+# Sersic parameters
+sersic_params :
+  xpos_guess : 525.0 #513.0
+  ypos_guess : 525.0 #493.0
+  pos_err : 0.
+  fix_PA : False # Applies to EVERY imfit step specified above
+  PA_guess : 0.
+  PA_min : -400.
+  PA_max : 400.0
+  fix_n : False # Applies to EVERY imfit step specified above
+  n_guess : 0.52078
+  n_min : 0.0
+  n_max : 1.5
+  fix_ell : False # Applies to EVERY imfit step specified above
+  ell_guess : 0.
+  ell_min : -0.1
+  ell_max : 0.1
+  fix_r_e : False # Applies to EVERY imfit step specified above
+  r_e_guess : 222.491
+  r_e_min : 50.0
+  r_e_max : 300
+  fix_I_e : False # Applies to EVERY imfit step specified above
+  I_e_guess : 40
+  I_e_min : 10.0
+  I_e_max : 60
+
+# Tilted plane parameters
+tilted_plane_params :
+  I_0_guess : 5
+  I_0_min : -10
+  I_0_max : 10
+  m_x_guess : -0.005
+  m_x_min : -5.
+  m_x_max : 5.
+  m_y_guess : -0.01
+  m_y_min : -5.
+  m_y_max : 5.
+
+flat_sky_params:
+  I_sky_guess : 5
+  I_sky_min : -40
+  I_sky_max : 40
+
+# Misc. imfit masking options
+#given_abs_mag_to_mask : -4
+#assumed_distance : 3.7 # Mpc
+mask_bright_star : False
+circle_mask:
+  radius : 350 #255
+  xpos : 270 #277
+  ypos : 0 #1048
+
+
+############################### ArtPop Options ###############################
+xpos_inject : 525
+ypos_inject : 525
+mist_path : '/Users/kirstencasey/Documents/Resources/MIST'
+random_state : #100
+telescope_diameter : 8.25 # meters
+include_sky_sb : True # Specify the SB in the Color Options section
+include_readnoise : True # Do this if not injecting the ArtPop model into a real image that already has readnoise included
+
+
+artpop_model_params :
+  log_age  : 10.1             # log of age in years
+  feh : -1.05                  # metallicity [Fe/H]
+  r_eff : 894                 # effective radius, parsecs
+  n : 0.52078                   # Sersic index
+  theta : 9.53788                # position angle, degrees
+  ellip : -0.0926788               # ellipticity
+  total_mass : 14900000.0    # stellar mass (NOTE: cannot be written in scientific notation, must include all digits)
+  imf : 'kroupa'              # initial mass function
+  phot_system : 'UBVRIplus'   # photometric system
+  distance : 3.7              # distance to system, Mpc
+  xy_dim : 1051               # image dimension
+
+
+# Legacy Survey options
+legacy_survey:
+  ra : 135.5933
+  dec : 73.2221
+  zpt : 22.5
+  pixel_scale : 0.262
+  phot_system : 'DECam'
+  fn_root : 'legacy_survey'

@@ -1,0 +1,132 @@
+############## Imfit, SBF Modeling Parameters ##############
+
+############################### Directory and File Selection Options ###############################
+# NOTE: This section covers important information about how LBCreduce will find the images you want to model.
+
+image_dir : '/Users/kirstencasey/m81_astrometry_out/sci/lbc-reduce_testing' #'/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
+out_dir :  '/Users/kirstencasey/m81_astrometry_out/sci/lbc-reduce_testing' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+image1 : 'mean_stack_cutout_r.fits'
+image2 : 'mean_stack_cutout_b.fits'
+psf1 : 'lbcr.median_psf_298.fits'
+psf2 : 'lbcb.median_psf_298.fits'
+overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
+
+############################### Other Common Options ###############################
+# NOTE: These are other commonly-used options you may find useful to change depending on your needs.
+
+color1 : 'r'
+color2 : 'b'
+zpt1 : 27.96
+zpt2 : 28.14
+pixscale : 0.2255
+exposure_time : 300.281 # seconds
+gain : 1.75
+color_term1 : -0.08626105084552202
+color_term2 : 0.13831743961339696
+ext : 1
+logger_level : 'INFO' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
+log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
+
+############################### Imfit Options ###############################
+# NOTE:
+imfit : True
+inject_model1 : # filename of r-band model to inject before running imfit
+inject_model2 : # filename of r-band model to inject before running imfit
+xpos_inject :
+ypos_inject :
+pos_err : 30
+
+# Imfit modeling
+sky1 : 8780.7230
+sky2 : 1769.5126
+readnoise : 12.0
+ncombined : 10
+include_exposure_time : False # Should only be True if images are in ADU/sec/pixel, False if ADU/pixel
+variance_image :
+
+# Sersic parameters
+xpos_guess : 513.0
+xpos_min : 490.0
+xpos_max : 530.0
+ypos_guess : 493.0
+ypos_min : 470.0
+ypos_max : 510.0
+PA_guess : 90
+PA_min : 0.0
+PA_max : 180
+n_guess : 0.5
+n_min : 0.0
+n_max : 5.0
+ell_guess : 0.05
+ell_min : -1
+ell_max : 1
+r_e_guess : 220
+r_e_min : 0.0
+r_e_max : 400
+I_e_guess : 30
+I_e_min : 0.0
+I_e_max : 100
+
+# Tilted plane parameters
+I_0_guess : 5
+I_0_min : -30
+I_0_max : 30
+m_x_guess : -0.005
+m_x_min : -0.5
+m_x_max : 0.5
+m_y_guess : -0.01
+m_y_min : -0.5
+m_y_max : 0.5
+
+# Imfit masking
+color1_masking_imfit:
+  thresh : 8.5
+  kern_sig : 1.0
+  backsize : 15
+  obj_rmin : 5
+  grow_obj : 7.0
+  seg_rmin : 2000.0
+
+color2_masking_imfit:
+  thresh : 6.5
+  kern_sig : 1.0
+  backsize : 15
+  obj_rmin : 5
+  grow_obj : 7.0
+  seg_rmin : 2000.0
+
+mask_bright_star : True
+
+circle_mask:
+  radius : 350
+  xpos : 270
+  ypos : 0
+
+############################### SBF Options ###############################
+# NOTE:
+sbf : True
+
+# SBF fitting
+k_min : 0.07
+k_max : 0.32
+num_radial_bins : 45
+use_sigma : False
+plot_percentiles_min : 0.1
+plot_percentiles_max : 99.9
+
+# SBF masking
+color1_masking_sbf:
+  thresh : 7.0
+  kern_sig : 1.0
+  backsize : 15
+  obj_rmin : 5
+  grow_obj : 7.0
+  seg_rmin : 2000.0
+
+color2_masking_sbf:
+  thresh : 6.0
+  kern_sig : 1.0
+  backsize : 15
+  obj_rmin : 5
+  grow_obj : 7.0
+  seg_rmin : 2000.0

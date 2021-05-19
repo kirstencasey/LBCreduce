@@ -20,7 +20,7 @@ ext : 1 # FITS file extension of imaging data
 check_output : True # Do you want to check on the image processing steps as they happen or just trust that everything is working out okay?
 logger_level : 'INFO' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
 log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
-notes : '' # These notes will be added to the image-production-details.txt file included in the output directory along with the other options that were used diring image processing
+notes : '' # These notes will be added to the image-production-details.txt file included in the output directory along with the other options that were used during image processing
 data_units : 'adu'
 reduce_selected_chips :  # Choose which LBC chips to reduce. True = reduce; False = do not reduce
   chip1 : False
@@ -90,8 +90,8 @@ default_options :
     weights :
     scale :
     sigma_clip : True
-    sigma_clip_low_thresh : 5
-    sigma_clip_high_thresh : 5
+    sigma_clip_low_thresh : 3
+    sigma_clip_high_thresh : 3
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
 
@@ -190,8 +190,8 @@ flat_options :
     weights :
     scale : 'inverse_median' # Options: inverse_median
     sigma_clip : True
-    sigma_clip_low_thresh : 5
-    sigma_clip_high_thresh : 5
+    sigma_clip_low_thresh : 3
+    sigma_clip_high_thresh : 1.0
     sigma_clip_func : 'median' # Options: median, mean
     sigma_clip_dev_func : 'mad_std' # Options: std, mad_std
 

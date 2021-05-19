@@ -8,19 +8,27 @@ from time import time
 from functools import wraps
 from astropy import units as u
 from ..log import logger
+from artpop.util import embed_slices
+from lbcred.utils import io
+from copy import deepcopy
+from astropy.nddata import Cutout2D
+from astropy.io import fits
 
 
 __all__ = [
     'check_astropy_units',
-    'command_line_override', 
-    'func_timer', 
-    'is_list_like', 
+    'command_line_override',
+    'func_timer',
+    'is_list_like',
     'list_of_strings',
     'make_list_like_if_needed',
-    'parse_dates_to_list', 
+    'parse_dates_to_list',
     'reverse_dict',
-    'setup_logger', 
-    'slice_image_center'
+    'setup_logger',
+    'slice_image_center',
+    'fetch_psf',
+    'fetch_cutout',
+    'inject_model',
 ]
 
 
@@ -31,7 +39,7 @@ def check_astropy_units(value, default_unit):
     elif (t == u.IrreducibleUnit) or (t == u.Unit):
         quantity = value * default_unit
     elif t == str:
-        quantity = value * getattr(u, default_unit) 
+        quantity = value * getattr(u, default_unit)
     else:
         raise Exception('default_unit must be an astropy unit or string')
     return quantity
@@ -163,7 +171,7 @@ def setup_logger(level, log_fn=None):
 
 def slice_image_center(shape):
     """
-    Generate the 2D slice for the center of an image accounting for whether 
+    Generate the 2D slice for the center of an image accounting for whether
     its dimensions are even or odd.
     """
     nrow, ncol = shape
@@ -172,7 +180,7 @@ def slice_image_center(shape):
         row_c = [nrow//2-1, nrow//2]
     else:
         row_c = nrow // 2
-        
+
     if ncol % 2 == 0:
         col_c = [ncol//2-1, ncol//2]
     else:
@@ -185,3 +193,105 @@ def slice_image_center(shape):
     slice_c = np.s_[row_c, col_c]
 
     return slice_c
+
+
+def fetch_psf(ra, dec, layer='dr8', bands='grz', save_files=False, fn_root='legacy_survey', out_dir=''):
+    url = 'https://www.legacysurvey.org/viewer/'
+    url += f'coadd-psf/?ra={ra}&dec={dec}&layer={layer}&bands={bands}'
+    session = requests.Session()
+    resp = session.get(url)
+    hdulist = fits.open(BytesIO(resp.content))
+    if save_file:
+        # write to file
+        psf_dict = {}
+        for i in range(len(bands)):
+            band = bands[i]
+            filename = os.path.join(out_dir,fn_root+f'_psf_{band}.fits')
+            hdulist[i].writeto(filename)
+            psf_dict[band] = filename
+    else:
+        psf_dict = {'grz'[i]: hdulist[i].data for i in range(len(bands))}
+
+    return psf_dict
+
+def fetch_cutout(ra, dec, bands='grz', size = 1500, save_files=False, fn_root='legacy_survey', out_dir='', get_cutout_only = False):
+
+    url_prefix = 'https://www.legacysurvey.org/viewer/'
+    url = url_prefix + f'fits-cutout?ra={ra}&dec={dec}&size={size}&'
+    url += 'layer=ls-dr8&pixscale=0.262&bands=grz&subimage'
+    session = requests.Session()
+    resp = session.get(url)
+    if get_cutout_only:
+        cutout = fits.getdata(BytesIO(resp.content))
+        image = {bands[i]: cutout[i, :, :] for i in range(len(bands))}
+        return image
+
+    hdulist = fits.open(BytesIO(resp.content))
+    if save_files:
+        # write to file
+        image_dict = {}
+        invvar_dict = {}
+        for i in range(len(bands)):
+            band = bands[i]
+            image_fn = os.path.join(out_dir,fn_root+f'_{band}.fits')
+            invvar_fn = os.path.join(out_dir,fn_root+f'_invvar_{band}.fits')
+            hdulist[[1, 3, 5][i]].writeto(image_fn,overwrite=True)
+            hdulist[[2, 4, 6][i]].writeto(invvar_fn,overwrite=True)
+            image_dict[band] = image_fn
+            invvar_dict[band] = invvar_fn
+        return image_dict, invvar_dict
+    else:
+        image_dict = {}
+        invvar_dict = {}
+        image_headers = {}
+        invvar_headers = {}
+        for i in range(len(bands)):
+            image_dict[bands[i]] = hdulist[[1, 3, 5][i]].data
+            image_headers[bands[i]] = hdulist[[1, 3, 5][i]].header
+            invvar_dict[bands[i]] = hdulist[[2, 4, 6][i]].data
+            invvar_headers[bands[i]] = hdulist[[2, 4, 6][i]].header
+        return image_dict, image_headers, invvar_dict, invvar_headers
+
+
+def inject_model(image, model, xpos, ypos):
+
+    image = io.load_path_or_pixels(image)
+    model = io.load_path_or_pixels(model)
+
+    # work on deep copy in case we want to make adjustments
+    mock_image = deepcopy(image)
+
+    # get slices to inject source
+    img_slice, arr_slice = embed_slices((xpos,ypos), model.shape, model.shape)
+
+    # inject source into image
+    mock_image[img_slice] += model[arr_slice]
+
+    return mock_image
+
+def save_image_odd_shape(img_fn,ext):
+
+    img = fits.open(img_fn)
+    shape = min(img[ext].data.shape)
+
+    if shape%2 == 0:
+        shape -= 1
+        cutout = Cutout2D(img[ext].data, (shape/2,shape/2), shape)
+        img[ext].data = cutout.data
+        img.writeto(img_fn, overwrite=True)
+
+    return shape
+
+
+def make_cutout(original_img_fn, position, shape, ext, cutout_fn=None):
+    img = fits.open(original_img_fn)
+    cutout = Cutout2D(img[ext].data, position, shape)
+    img[ext].data = cutout.data
+    if cutout_fn is not None:
+        img.writeto(cutout_fn, overwrite=True)
+
+    return cutout
+
+
+def get_chisquare(f_obs, f_exp):
+    return np.sum((f_obs-f_exp)**2)
