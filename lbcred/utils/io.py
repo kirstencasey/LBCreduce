@@ -74,13 +74,13 @@ def load_path_or_header(path_or_header):
     return header
 
 
-def load_path_or_pixels(path_or_pixels, dtype=None):
+def load_path_or_pixels(path_or_pixels, dtype=None, extname=None):
     """
     Check if the input is a file or numpy array and return a numpy array.
 
     Parameters
     ----------
-    image_path_or_pixels : str or ndarray or list of one of these
+    path_or_pixels : str or ndarray or list of one of these
         An image file name or numpy array of its pixels.
     dtype : type (optional)
         If not None, change the image to this data type.
@@ -97,7 +97,7 @@ def load_path_or_pixels(path_or_pixels, dtype=None):
     """
     data = path_or_pixels
     if type(data) == str or type(data) == np.str_:
-        data = fits.getdata(data)
+        data = fits.getdata(data, extname=extname)
     if dtype is not None:
         data = data.astype(dtype)
     return data

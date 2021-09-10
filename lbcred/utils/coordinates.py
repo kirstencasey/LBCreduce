@@ -14,7 +14,7 @@ from ..log import logger
 from .. import ResultStruct
 
 
-__all__ = ['get_today', 'get_moon_status', 'get_image_corners', 
+__all__ = ['get_today', 'get_moon_status', 'get_image_corners',
            'has_wcs', 'nms', 'to_skycoord']
 
 
@@ -67,7 +67,7 @@ def get_moon_status(skycoord, utc_time):
 
 def get_image_corners(path_or_header):
     """
-    Get the sky coordinates of the corners of an image taking SIP 
+    Get the sky coordinates of the corners of an image taking SIP
     corrections into account.
     """
     header = utils.load_path_or_header(path_or_header)

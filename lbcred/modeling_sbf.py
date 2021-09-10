@@ -1,5 +1,6 @@
 import numpy as np
 import os, yaml
+from shutil import copyfile
 from lbcred.log import logger
 from lbcred import tools, sbf_functions
 from lbcred.utils import misc, io
@@ -7,12 +8,20 @@ from lbcred.model import imfit
 from astropy.io import fits
 
 
-def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=None):
+def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=None, run_id=None):
 
     logger.info('Getting ready...')
-    # Open and read config file
-    with open(config_filename, 'r') as filename:
-        config = yaml.load(filename, Loader=yaml.FullLoader)
+    if type(config_filename) is not dict:
+        # Open and read config file
+        with open(config_filename, 'r') as filename:
+            config = yaml.load(filename, Loader=yaml.FullLoader)
+        # Save copy of config to output directory
+        copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1]))
+    else:
+        config = config_filename
+        # Save copy of config to output directory
+        with open(os.path.join(config['out_dir'],'modeling-config_sbf.yml'), 'w') as outfile:
+            yaml.dump(config, outfile, default_flow_style=False)
 
 	# Replace options input via command line into config
     for key in options:
@@ -45,6 +54,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
 
     model_cutout_fn = config['model_fn'].replace('.fits','_cutout.fits')
     resid_cutout_fn = config['resid_fn'].replace('.fits','_cutout.fits')
+
     if sersic_results['ell'] < 0: smajor_axis = sersic_results['r_e']*(1-sersic_results['ell'])
     else: smajor_axis = sersic_results['r_e']
 
@@ -80,21 +90,18 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     logger.info('Iterating through SBF measurement parameters...')
     while iter < config['num_iters']:
         if config['masking_sbf']['randomly_vary_mask_radius']:
-            #print('getting scale')
             scale = np.random.uniform(config['masking_sbf']['min_random_frac_of_radius'],config['masking_sbf']['max_random_frac_of_radius'])
             scales.append(scale)
         else: scale=config['masking_sbf']['fixed_frac_of_radius']
 
         grow_obj = config['masking_sbf']['grow_obj']
         if config['masking_sbf']['randomly_vary_grow_obj']:
-            #print('getting grow_obj')
             grow_obj = np.random.uniform(config['masking_sbf']['grow_obj']-config['masking_sbf']['random_growth_max_deviation'],config['masking_sbf']['grow_obj']+config['masking_sbf']['random_growth_max_deviation'])
             grow_objs.append(grow_obj)
         else: grow_obj=config['masking_sbf']['grow_obj']
 
         sbf_resid, sbf_mask = sbf_functions.get_sbf_mask_resid(os.path.join(config['image_dir'],config['model_fn']), os.path.join(config['image_dir'],config['resid_fn']), sersic_results, grow_obj, scale, config)
 
-        #print('getting k-values')
         k_min = np.random.uniform(config['k_min']-config['random_k_limit_deviation'],config['k_min']+config['random_k_limit_deviation'])
         k_max = np.random.uniform(config['k_max']-config['random_k_limit_deviation'],config['k_max']+config['random_k_limit_deviation'])
         while k_min <= 0.05 or k_max-k_min <= config['min_random_diff_between_kmin_kmax']: k_min = np.random.uniform(config['k_min']-config['random_k_limit_deviation'],config['k_min']+config['random_k_limit_deviation'])
@@ -130,6 +137,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     # Save results
     for name, arr in zip(['sbf_mags','chi_squares','k_min','k_max','dist_a','dist_b'],[sbf_mags,chi_squares,k_mins,k_maxs,dists_a,dists_b]):
         out_name = f'sbf_calculation_{name}'
+        if run_id is not None: out_name += f'_{run_id}'
         if run_iter is not None: out_name += f'_iter{run_iter}'
 
         file = open(os.path.join(config['out_dir'],out_name), "wb")
@@ -144,6 +152,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     if config['masking_sbf']['randomly_vary_grow_obj']:
         grow_objs = np.asarray(grow_objs)
         out_name = 'sbf_calculation_grow_obj'
+        if run_id is not None: out_name += f'_{run_id}'
         if run_iter is not None: out_name += f'_iter{run_iter}'
         file = open(os.path.join(config['out_dir'],out_name), "wb")
         np.save(file, grow_objs)
@@ -153,6 +162,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     if config['masking_sbf']['randomly_vary_mask_radius']:
         scales = np.asarray(scales)
         out_name = 'sbf_calculation_mask_radius_scale'
+        if run_id is not None: out_name += f'_{run_id}'
         if run_iter is not None: out_name += f'_iter{run_iter}'
         file = open(os.path.join(config['out_dir'],out_name), "wb")
         np.save(file, scales)

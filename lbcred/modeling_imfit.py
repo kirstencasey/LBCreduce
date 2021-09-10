@@ -1,5 +1,6 @@
 import numpy as np
 import os, yaml
+from shutil import copyfile
 from lbcred.log import logger
 from lbcred import tools, sbf_functions
 from lbcred.utils import misc, io
@@ -7,13 +8,21 @@ from lbcred.model import imfit, artpop_functions
 from astropy.io import fits
 
 
-def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None):
+def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backmodel=None):
 
     logger.info('Getting ready...')
 
-    # Open and read config file
-    with open(config_filename, 'r') as filename:
-        config = yaml.load(filename, Loader=yaml.FullLoader)
+    if type(config_filename) is not dict:
+        # Open config
+        with open(config_filename, 'r') as config:
+            config = yaml.load(config, Loader=yaml.FullLoader)
+        # Save copy of config to output directory
+        copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1]))
+    else:
+        config = config_filename
+        # Save copy of config to output directory
+        with open(os.path.join(config['out_dir'],'modeling-config_imfit.yml'), 'w') as outfile:
+            yaml.dump(config, outfile, default_flow_style=False)
 
 	# Replace options input via command line into config
     for key in options:
@@ -57,28 +66,48 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None):
     color2 = config['color2']['name']
     if config['inject_artpop_model']:
         logger.info('Injecting model galaxy into image...')
+
+        if config['use_pregen_artpops']: inject_dir = config['pregen_artpop_dir']
+        else: inject_dir = config['out_dir']
+        if config['use_src_counts'] : extname = 'src_counts'
+        else : extname = None
+
         if config['use_legacy_survey']:
-            image1 = misc.inject_model(os.path.join(config['out_dir'],image_fns['r']), os.path.join(config['out_dir'],config['color1']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'])
+            image1 = misc.inject_model(os.path.join(config['out_dir'],image_fns['r']), os.path.join(inject_dir,config['color1']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
             config['color1']['image_fn'] = image_fns['r'].replace('_r.fits', '_mock_injected_r.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color1']['image_fn']), image1)
 
-            image2 = misc.inject_model(os.path.join(config['out_dir'],image_fns['g']), os.path.join(config['out_dir'],config['color2']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'])
+            image2 = misc.inject_model(os.path.join(config['out_dir'],image_fns['g']), os.path.join(inject_dir,config['color2']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
             config['color2']['image_fn'] = image_fns['g'].replace('_g.fits', '_mock_injected_g.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color2']['image_fn']), image2)
 
         else:
-            image1 = misc.inject_model(os.path.join(config['out_dir'],config['color1']['image_fn']), os.path.join(config['out_dir'],config['color1']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'])
+            image1 = misc.inject_model(os.path.join(config['out_dir'],config['color1']['image_fn']), os.path.join(inject_dir,config['color1']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
             config['color1']['original_fn'] = config['color1']['image_fn']
             config['color1']['image_fn'] = config['color1']['image_fn'].replace(f'_{color1}.fits', f'_mock_injected_{color1}.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color1']['image_fn']), image1)
 
 
-            image2 = misc.inject_model(os.path.join(config['out_dir'],config['color2']['image_fn']), os.path.join(config['out_dir'],config['color2']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'])
+            image2 = misc.inject_model(os.path.join(config['out_dir'],config['color2']['image_fn']), os.path.join(inject_dir,config['color2']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
             config['color2']['original_fn'] = config['color2']['image_fn']
             config['color2']['image_fn'] = config['color2']['image_fn'].replace(f'_{color2}.fits', f'_mock_injected_{color2}.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color2']['image_fn']), image2)
 
         config['image_dir'] = config['out_dir']
+
+    if backmodel is not None:
+        cutout1 = fits.open(os.path.join(config['image_dir'],config['color1']['image_fn']))
+        cutout2 = fits.open(os.path.join(config['image_dir'],config['color2']['image_fn']))
+        print(os.path.join(config['image_dir'],config['color1']['image_fn']))
+        print(cutout1[config['ext']].data[0])
+        cutout1[config['ext']].data -= backmodel[0].data
+        cutout2[config['ext']].data -= backmodel[1].data
+
+        print(backmodel[0].data[0])
+        print(cutout1[config['ext']].data[0])
+
+        io.write_pixels(os.path.join(config['image_dir'],config['color1']['image_fn']), cutout1[config['ext']].data)
+        io.write_pixels(os.path.join(config['image_dir'],config['color2']['image_fn']), cutout2[config['ext']].data)
 
     # Run imfit if necessary
     if config['run_imfit']:
@@ -108,32 +137,6 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None):
         rdnoise = config['readnoise']
         gain = config['gain']
         ncomb = config['ncombined']
-        '''
-        sky1 = config['color1']['sky']
-        sky2 = config['color2']['sky']
-        options = f'--readnoise {rdnoise} --gain {gain} --ncombined {ncomb}'
-        options1 = options + f'--sky {sky1} '
-        options2 = options + f'--sky {sky2} '
-
-        # run imfit, b-band sersic only
-        logger.info('Running Imfit : Sersic-only')
-        #results2, model2_fn, resid2_fn = imfit.run_imfit(im2_fn, mask2_fn, config['color2'], config, options2, sersic=True, tiltedplane=False, fixedsersic=None, viz=True, iter=iter, fn_stub=fn_stub)
-
-        # run imfit, r-band fixed sersic + tilted plane
-        logger.info('Running Imfit : Sersic + Tilted Plane')
-        #results1, model1_fn, resid1_fn = imfit.run_imfit(im1_fn, mask1_fn, config['color1'], config, options1, sersic=True, tiltedplane=True, fixedsersic=results2, viz=True, iter=iter, fn_stub=fn_stub)
-        results1, model1_fn, resid1_fn = imfit.run_imfit(im1_fn, mask1_fn, config['color1'], config, options1, sersic=True, tiltedplane=False, fixedsersic=None, viz=True, iter=iter, fn_stub=fn_stub)
-
-        # run imfit, b-band fixed sersic + tilted plane
-        #results2, model2_fn, resid2_fn = imfit.run_imfit(im2_fn, mask2_fn, config['color2'], config, options2, sersic=True, tiltedplane=True, fixedsersic=results2, viz=True, iter=iter, fn_stub=fn_stub)
-        results2, model2_fn, resid2_fn = imfit.run_imfit(im2_fn, mask2_fn, config['color2'], config, options2, sersic=True, tiltedplane=False, fixedsersic=results1, viz=True, iter=iter, fn_stub=fn_stub)
-
-        # Summarize major findings (mags, color, etc.)
-        mag1, mag2, color = imfit.summarize_results(config, results1.results['comp_1'], results2.results['comp_1'])
-
-
-        '''
-        #### New run_imfit steps
 
         imfit_results = {}
         step_num = 1
@@ -170,7 +173,7 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None):
             model_sum = ''
             for func in imfit_results[key]['functions']: model_sum += f'{func} '
             logger.info(f'Running Imfit : {model_sum}')
-            results, model_fn, resid_fn = imfit.run_imfit_updated(im_fn, mask_fn, color_options, config, model_funcs=imfit_results[key]['functions'], options=options, fixedsersic=fixed_struc, viz=True, iter=iter, fn_stub=fn_stub)
+            results, model_fn, resid_fn = imfit.run_imfit(im_fn, mask_fn, color_options, config, model_funcs=imfit_results[key]['functions'], options=options, fixedsersic=fixed_struc, viz=True, iter=iter, fn_stub=fn_stub)
 
             # Update results dict
             imfit_results[key]['results'] = results
@@ -206,24 +209,6 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None):
             src_color1 = None
             src_color2 = None
 
-        ''' OLD IMFIT
-        if iter is None:
-            bf1_fn = os.path.join(config['out_dir'],model1_fn.split('_model')[0]+f'_bestfit-params_{color1}.txt')
-            bf2_fn = os.path.join(config['out_dir'],model2_fn.split('_model')[0]+f'_bestfit-params_{color2}.txt')
-        else:
-            bf1_fn = os.path.join(config['out_dir'],model1_fn.split('_model')[0]+f'_bestfit-params_{fn_stub}_iter{iter}_{color1}.txt')
-            bf2_fn = os.path.join(config['out_dir'],model2_fn.split('_model')[0]+f'_bestfit-params_{fn_stub}_iter{iter}_{color2}.txt')
-        #bestfit1 = io.read_results(bf1_fn, ['TiltedSkyPlane', 'Sersic'])
-        bestfit1 = io.read_results(bf1_fn, ['Sersic'])
-        #bestfit2 = io.read_results(bf2_fn, ['TiltedSkyPlane', 'Sersic'])
-        bestfit2 = io.read_results(bf2_fn, ['Sersic'])
-        #bestfit1 = io.read_results(bf1_fn, ['FlatSky', 'Sersic'])
-        #bestfit2 = io.read_results(bf2_fn, ['FlatSky', 'Sersic'])
-
-        return bestfit1, bestfit2, bf1_fn.split('/')[-1], bf2_fn.split('/')[-1], mag1, mag2, color, model1_fn, resid1_fn, model2_fn, resid2_fn, src_sbfmag1, src_color1, src_color2
-
-        '''
-        ######### NEW
         if iter is None:
             bf1_fn = os.path.join(config['out_dir'],imfit_results[final_step1]['model_fn'].split('_model')[0]+f'_bestfit-params_{color1}.txt')
             bf2_fn = os.path.join(config['out_dir'],imfit_results[final_step2]['model_fn'].split('_model')[0]+f'_bestfit-params_{color2}.txt')
@@ -235,6 +220,6 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None):
         bestfit2 = io.read_results(bf2_fn, imfit_results[final_step2]['functions'])
 
         return bestfit1, bestfit2, bf1_fn.split('/')[-1], bf2_fn.split('/')[-1], mag1, mag2, color, imfit_results[final_step1]['model_fn'], imfit_results[final_step1]['resid_fn'], imfit_results[final_step1]['functions'], imfit_results[final_step2]['model_fn'], imfit_results[final_step2]['resid_fn'], src_sbfmag1, src_color1, src_color2
-        ######### END New
+
 
     return

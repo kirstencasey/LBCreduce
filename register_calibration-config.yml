@@ -1,0 +1,139 @@
+############## Register + Calibrate Images Parameters ##############
+
+
+############################### Directory and File Selection Options ###############################
+image_dir : '/Users/kirstencasey/real_image_tests/input' # Where all the files needed for image registration are located (if register_images is False this will be the input directory for calibration)
+out_dir : '/Users/kirstencasey/real_image_tests' # Specify desired path of output directory for image registration (if register_images is True this will be the input directory for calibration).
+artpop_model_dir : #'/Users/kirstencasey/background_subtraction_tests/single-exposure_input/artpop_models'
+glob_select : 'M81blob.proc.fits' #_backsub_M81blob.proc_reg.fits
+reference_catalog : '/Users/kirstencasey/background_subtraction_tests/panstarrs-137.6-73.4.csv'
+reference_catalog_withBESSEL : '/Users/kirstencasey/background_subtraction_tests/panstarrs-137.6-73.4_withBESSEL.dat'
+index-path :
+final_stack_fn_r : mean_stack_median_background_r.fits #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits'
+final_stack_fn_b : mean_stack_median_background_b.fits #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits'
+stack_color_id_r : '_r' # 'lbcr', '_r'
+psf_fn_r : 'lbcr.median_psf_298.fits'
+psf_fn_b : 'lbcb.median_psf_298.fits'
+run_on_cali_files : False
+run_on_sci_files : True
+make_plots : True
+ext : 0
+
+############################### Other Common Options ###############################
+register_images : True
+calibrate_images : True
+stack_images : True
+subtract_background : True
+inject_artpop : False
+construct_artpop : False
+
+center_ra : 137.5605
+center_dec : 73.4394
+output_dimensions :
+  x : 3000
+  y : 5500
+pixscale : 0.224
+chip_num : 2 # Can only handle one chip at a time right now...
+
+
+############################### Background Subtraction Options ###############################
+background_model : 'median' # Options: 'SEsky', 'median', 'clipped_mean', 'plane', 'polynomial'
+save_background_models : True
+generate_image_mask : True
+image_mask_thresh : 5 # This uses mad_std to determine masked pixels
+
+SEsky :
+  box_size : 800
+
+median :
+  initialize_with_SEsky : True
+
+clipped_mean :
+  thresh : 3
+  initialize_with_SEsky : True
+
+plane :
+  initialize_with_SEsky : True
+
+polynomial :
+  degree : 1
+  initialize_with_SEsky : True
+
+
+############################### Calibration Options ###############################
+chosen_aper : 5 # pixel radius
+texp_cali : 30.262 # seconds
+texp_sci : 300.281 # seconds
+gain : 1.75
+readnoise : 12.
+saturation_limit : 40000 # ADU/pixel
+check_aperture_plots : False
+
+flux_apers : '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30' # These determine the aperture sizes used to calculate star fluxes, pixel units; separate by comma
+allowed_sep : 0.75 # arcseconds, separation for matching stars in images to stars in reference catalog
+
+# Cut objects near areas where there are known issues in the image; ra_cut and dec_cut should be the same length (comma deliminated)
+ra_cut : '137.7533912,137.7334531,137.400731,137.3802136'
+dec_cut : '73.4236248,73.3883209,73.2990843,73.275741'
+
+# Hand-pick stars that are good for the calibration (not saturated, etc.); calibration_stars_ra and calibration_stars_dec should be the same length
+calibration_stars_ra : '137.7236283,137.7581456,137.4735873,137.4222099,137.4735873,137.4143579,137.4039429,137.6692856,137.6534977,137.7192012,137.4845199,137.6640354,137.6196284,137.4230031,137.5283300,137.5879568,137.4206052,137.4306692,137.7192012,137.4389020'
+calibration_stars_dec : '73.3228615,73.3256727,73.3001069,73.3058574,73.3001069,73.4010486,73.4222730,73.4939572,73.4902412,73.4835457,73.4556498,73.3700219,73.3548676,73.3587842,73.3124673,73.2930358,73.2909078,73.2854915,73.4835457,73.5412225'
+
+# Not necessary to include saturated stars (those will be removed anyway)
+all_exposures :
+  cali:
+    cut_star_nums_r : ''
+    cut_star_nums_b : '111,114,240,322,325,571'
+  sci:
+    cut_star_nums_r : '405' #'43,87'
+    cut_star_nums_b : '376' #'176,377' #'12,14,18,55'
+
+stack :
+  cali:
+    cut_star_nums_r : ''
+    cut_star_nums_b : '111,114,240,322,325,571'
+  sci:
+    cut_star_nums_r : '' #'15'
+    cut_star_nums_b : '3,6'
+
+
+############################### Stack PSF Options ###############################
+construct_psf : True
+psf_star :
+  ra : 137.7480670
+  dec : 73.4884674
+
+
+############################### ArtPop Options ###############################
+xpos_inject : 994 # pixel; this should only be done when running on a SINGLE exposure
+ypos_inject : 1190 # pixel; this should only be done when running on a SINGLE exposure
+mist_path : '/Users/kirstencasey/Documents/Resources/MIST'
+random_state : 100
+telescope_diameter : 8.25 # meters
+include_sky_sb : False # Specify the SB in the Color Options section
+include_readnoise : False # Do this if not injecting the ArtPop model into a real image that already has readnoise included
+artpop_band_r : 'Bessell_R'
+artpop_band_b : 'Bessell_B'
+extinction_r : 0.053
+extinction_b : 0.091
+add_remnants : False
+artpop_model_fn_r : 'artpop_model_r.fits'
+artpop_model_fn_b : 'artpop_model_b.fits'
+zpt_r : 28.02708203737313  #27.802908017943235
+zpt_b : 28.26591947732506 #28.1975307137608
+colorterm_r : 0. #-0.155768040688061
+colorterm_b : 0. #0.13296490058751856
+
+artpop_model_params :
+  log_age  : 10.1             # log of age in years
+  feh : -1.05                  # metallicity [Fe/H]
+  r_eff : 841                 # effective radius, parsecs
+  n : 0.565536                   # Sersic index
+  theta : 9.53788                # position angle, degrees
+  ellip : -0.0926788               # ellipticity
+  total_mass : 14900000.0    # stellar mass (NOTE: cannot be written in scientific notation, must include all digits)
+  imf : 'kroupa'              # initial mass function
+  phot_system : 'UBVRIplus'   # photometric system
+  distance : 3.7              # distance to system, Mpc
+  xy_dim : 1051               # image dimension

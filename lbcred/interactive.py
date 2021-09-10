@@ -18,7 +18,7 @@ def get_input(question, acceptable_responses=default_acceptable, anything_accept
 
 	# Keep asking for input until acceptable input is entered
 	response = None
-	# For
+
 	if not is_dir and not anything_acceptable:
 		while response not in acceptable_responses and response != exit_response:
 			response = input(question)

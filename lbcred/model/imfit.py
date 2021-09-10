@@ -23,7 +23,13 @@ def create_imfit_mask(config, color_specific_info):
     '''
 
     color = color_specific_info['name']
-    mask_fn = os.path.join(config['out_dir'],color_specific_info['image_fn'].replace(f'_{color}.fits',f'_mask_{color}.fits'))
+    if color_specific_info['mask_fn'] is not None :
+        mask_fn = os.path.join(config['image_dir'],color_specific_info['mask_fn'])
+        mask = fits.getdata(mask_fn)
+        return mask, mask_fn
+
+    else :
+        mask_fn = os.path.join(config['out_dir'],color_specific_info['image_fn'].replace(f'_{color}.fits',f'_mask_{color}.fits'))
 
     if config['inject_artpop_model'] :
         x = config['xpos_inject']
@@ -82,7 +88,7 @@ def run_makeimage(bestfit_fn, in_dir='.' , psf_fn=None, ref_fn=None, output_root
 
     return
 
-def organize_initial_params(config, model, fixedsersic=None):
+def organize_initial_params(config, model, fixedsersic=None, color=None):
 
 
     if model == 'Sersic' and fixedsersic == None:
@@ -94,7 +100,13 @@ def organize_initial_params(config, model, fixedsersic=None):
         else: ell = [config['sersic_params']['ell_guess'], config['sersic_params']['ell_min'], config['sersic_params']['ell_max']]
         if config['sersic_params']['fix_r_e']: r_e = [config['sersic_params']['r_e_guess'], 'fixed']
         else: r_e = [config['sersic_params']['r_e_guess'], config['sersic_params']['r_e_min'], config['sersic_params']['r_e_max']]
-        if config['sersic_params']['fix_I_e']: I_e = [config['sersic_params']['I_e_guess'], 'fixed']
+        if config['sersic_params']['fix_I_e']:
+            if color==config['color1']['name']:
+                I_e = [45.7, 'fixed']
+            elif color==config['color2']['name']:
+                I_e = [16.85, 'fixed']
+
+            #I_e = [config['sersic_params']['I_e_guess'], 'fixed']
         else: I_e = [config['sersic_params']['I_e_guess'], config['sersic_params']['I_e_min'], config['sersic_params']['I_e_max']]
 
         if config['inject_artpop_model']:
@@ -132,94 +144,29 @@ def organize_initial_params(config, model, fixedsersic=None):
         '''
         if config['inject_artpop_model']:
             center = [config['xpos_inject'],config['ypos_inject']]
-            dcent=None
+            dcent=1000
         else:
             center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
-            dcent=None
+            dcent=1000
 
     elif model == 'FlatSky':
         I_sky = [config['flat_sky_params']['I_sky_guess'],config['flat_sky_params']['I_sky_min'],config['flat_sky_params']['I_sky_max']]
         init_params = dict(I_sky=I_sky)
+        '''
         center = None
         dcent = None
+        '''
+        if config['inject_artpop_model']:
+            center = [config['xpos_inject'],config['ypos_inject']]
+            dcent=1000
+        else:
+            center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
+            dcent=1000
 
 
     return init_params, center, dcent
 
-# OLD RUN_IMFIT
-def run_imfit(img_fn, mask_fn, color_specific_info, config, options='', sersic=True, tiltedplane=False, flatsky=False, fixedsersic=None, viz=False, iter=None, fn_stub=None):
-
-    psf_fn = os.path.join(config['image_dir'],color_specific_info['psf'])
-    color = color_specific_info['name']
-
-    # Get model/residual filenames
-    if sersic and not tiltedplane and not flatsky:
-        model_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic-only_model_{color}.fits'))
-        resid_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic-only_resid_{color}.fits'))
-        if iter is None: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic-only_bestfit-params_{color}.txt'))
-        else: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic-only_bestfit-params_{fn_stub}_iter{iter}_{color}.txt'))
-        config_fn = f'config_sersic-only_{color}.txt'
-
-        init_params, center, dcent = organize_initial_params(config, 'Sersic', fixedsersic)
-        model = pymfit.Model(funcs = ['Sersic'], params = [init_params], centers = [center], dcent=dcent)
-
-    elif sersic and tiltedplane:
-        model_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_tiltedplane_model_{color}.fits'))
-        resid_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_tiltedplane_resid_{color}.fits'))
-        if iter is None: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_tiltedplane_bestfit-params_{color}.txt'))
-        else: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_tiltedplane_bestfit-params_{fn_stub}_iter{iter}_{color}.txt'))
-        config_fn = f'config_sersic_tiltedplane_{color}.txt'
-
-        init_params_tiltedplane, center_tiltedplane, dcent_tiltedplane = organize_initial_params(config, 'TiltedSkyPlane')
-        if fixedsersic == None:
-            init_params_sersic, center, dcent = organize_initial_params(config, 'Sersic')
-        else:
-            init_params_sersic, center, dcent = organize_initial_params(config, 'Sersic', fixedsersic)
-
-        model = pymfit.Model(funcs = ['TiltedSkyPlane','Sersic'], params = [init_params_tiltedplane,init_params_sersic], centers = [center,center], dcent=dcent)
-
-    elif sersic and flatsky:
-        model_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_flatsky_model_{color}.fits'))
-        resid_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_flatsky_resid_{color}.fits'))
-        if iter is None: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_flatsky_bestfit-params_{color}.txt'))
-        else: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_sersic_flatsky_bestfit-params_{fn_stub}_iter{iter}_{color}.txt'))
-        config_fn = f'config_sersic_flatsky_{color}.txt'
-
-        init_params_flatsky, center_flatsky, dcent_flatsky = organize_initial_params(config, 'FlatSky')
-        if fixedsersic == None:
-            init_params_sersic, center, dcent = organize_initial_params(config, 'Sersic')
-        else:
-            init_params_sersic, center, dcent = organize_initial_params(config, 'Sersic', fixedsersic)
-
-        model = pymfit.Model(funcs = ['FlatSky','Sersic'], params = [init_params_flatsky,init_params_sersic], centers = [center,center], dcent=dcent)
-
-
-    fitter = pymfit.PymFitter(model,save_files=True)
-    print(fitter.model.funcs)
-    if config['variance_image'] is not None:
-        fitter.run(os.path.join(config['image_dir'],img_fn), var_fn=os.path.join(config['image_dir'],config['variance_image']), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=config['out_dir'], config_fn=config_fn, save_model=True, save_residual=True, will_viz=True)
-    else:
-        fitter.run(os.path.join(config['image_dir'],img_fn), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=config['out_dir'], config_fn=config_fn, save_model=True, save_residual=True, will_viz=True, options=options)
-
-    io.rename_fits_file(os.path.join(config['image_dir'],img_fn.replace('.fits','_model.fits')), model_fn, delete_old=True, overwrite=config['overwrite'])
-    io.rename_fits_file(os.path.join(config['image_dir'],img_fn.replace('.fits','_res.fits')), resid_fn, delete_old=True, overwrite=config['overwrite'])
-
-    if tiltedplane or flatsky:
-        # Use makeimage
-        run_makeimage(bestfit_fn, psf_fn=psf_fn, ref_fn=os.path.join(config['image_dir'],img_fn), output_root=model_fn.replace('.fits','_'))
-        model_fn = model_fn.replace('.fits','_2_Sersic.fits')
-
-    if viz:
-        if iter is None: fn = model_fn.replace('.fits','.png')
-        else: fn = model_fn.replace('.fits',f'_iter{iter}.png')
-        fitter.viz_results(show=False, save_fn=fn, dpi=200)
-
-    return fitter, model_fn, resid_fn
-
-
-####################################################### NEW RUN_IMFIT IN PROGRESS BELOW #######################################################
-
-def run_imfit_updated(img_fn, mask_fn, color_specific_info, config, model_funcs, options='', fixedsersic=None, viz=False, iter=None, fn_stub=None):
+def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options='', fixedsersic=None, viz=False, iter=None, fn_stub=None):
 
     psf_fn = os.path.join(config['image_dir'],color_specific_info['psf'])
     color = color_specific_info['name']
@@ -237,21 +184,19 @@ def run_imfit_updated(img_fn, mask_fn, color_specific_info, config, model_funcs,
     centers = []
     dcents = []
     for func in model_funcs:
-        init_params, center, dcent = organize_initial_params(config, func, fixedsersic)
-        print('DCENT: ',dcent)
+        init_params, center, dcent = organize_initial_params(config, func, fixedsersic, color)
         params.append(init_params)
         centers.append(center)
         dcents.append(dcent)
         if dcent is not None: dcent_final = dcent
-    print('PARAMS: ',params,'\n')
-    print('CENTERS: ',centers,'\n')
-    print('DCENTS: ',dcents)
-    print('DCENT FINAL: ',dcent_final)
+
     model = pymfit.Model(funcs = model_funcs, params = params, centers = centers, dcent=dcent_final)
 
     fitter = pymfit.PymFitter(model,save_files=True)
     print(fitter.model.funcs)
+    print(fitter.model)
     if config['variance_image'] is not None:
+        print(mask_fn,psf_fn,bestfit_fn)
         fitter.run(os.path.join(config['image_dir'],img_fn), var_fn=os.path.join(config['image_dir'],config['variance_image']), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=config['out_dir'], config_fn=config_fn, save_model=True, save_residual=True, will_viz=True)
     else:
         fitter.run(os.path.join(config['image_dir'],img_fn), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=config['out_dir'], config_fn=config_fn, save_model=True, save_residual=True, will_viz=True, options=options)
@@ -271,7 +216,6 @@ def run_imfit_updated(img_fn, mask_fn, color_specific_info, config, model_funcs,
 
     return fitter, model_fn, resid_fn
 
-####################################################### NEW RUN_IMFIT IN PROGRESS ABOVE #######################################################
 
 def summarize_results(config, sersic_params1, sersic_params2=None):
 
@@ -309,55 +253,6 @@ def summarize_results(config, sersic_params1, sersic_params2=None):
         return mag1_corrected , mag2_corrected , color_corrected
 
     return sersic1.m_tot - config['color1']['extinction']
-
-    '''
-    zp_r = 27.96
-    zp_b = 28.14
-
-    b_n_r = gammaincinv(2.*n_r, 0.5)
-    b_n_b = gammaincinv(2.*n_b, 0.5)
-    f_n_r = gamma(2*n_r)*n_r*np.exp(b_n_r)/b_n_r**(2*n_r)
-    f_n_b = gamma(2*n_b)*n_b*np.exp(b_n_b)/b_n_b**(2*n_b)
-
-    q_r = 1 - ell_r
-    q_b = 1 - ell_b
-
-    r_circ_r = r_e_r*np.sqrt(q_r)
-    r_circ_b = r_e_b*np.sqrt(q_b)
-    A_eff_r = np.pi*(r_circ_r*pixscale)**2
-    A_eff_b = np.pi*(r_circ_b*pixscale)**2
-
-    mag_r = 27.96 - 2.5 * np.log10(np.sum(model_r[0].data)*gain/texp)
-    mag_b = 28.14 - 2.5 * np.log10(np.sum(model_b[0].data)*gain/texp)
-    color = mag_b - mag_r
-    print(f'r-band magnitude: {mag_r}\nb-band magnitude: {mag_b}\nb-r color: {color}\n')
-
-    # Re-calculate mags using color terms
-    color_term_r = -0.08626105084552202
-    color_term_b = 0.13831743961339696
-    mag_r_1 = 27.96 - 2.5 * np.log10(np.sum(model_r[0].data)*gain/texp) - (color_term_r*color)
-    mag_b_1 = 28.14 - 2.5 * np.log10(np.sum(model_b[0].data)*gain/texp) - (color_term_b*color)
-    color_1 = mag_b_1 - mag_r_1
-    print(f'r-band magnitude: {mag_r_1}\nb-band magnitude: {mag_b_1}\nb-r color: {color_1}')
-
-    # Calculate SBs
-    mu_e_ave_r = mag_r_1 + 2.5*np.log10(2*A_eff_r)
-    mu_e_ave_b = mag_b_1 + 2.5*np.log10(2*A_eff_b)
-    mu_e_r = mu_e_ave_r + 2.5*np.log10(f_n_r)
-    mu_e_b = mu_e_ave_b + 2.5*np.log10(f_n_b)
-    mu_0_r = mu_e_r - 2.5*b_n_r/np.log(10)
-    mu_0_b = mu_e_b - 2.5*b_n_r/np.log(10)
-    print('\nSurface brightnesses:')
-    print(f'r-band mu_e_ave: {mu_e_ave_r}')
-    print(f'b-band mu_e_ave: {mu_e_ave_b}')
-    print(f'r-band mu_e: {mu_e_r}')
-    print(f'b-band mu_e: {mu_e_b}')
-    print(f'r-band mu_0: {mu_0_r}')
-    print(f'b-band mu_0: {mu_0_b}')
-
-    '''
-
-    return mag1_corrected, mag2_corrected, color_corrected
 
 def smooth_image():
 

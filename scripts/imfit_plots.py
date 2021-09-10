@@ -5,22 +5,30 @@ from lbcred.utils import io
 from lbcred.model import imfit
 
 # Define files we want to read
-in_dir = '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing/random_position_single_artpop_sersic_fixed_on_b_free_pa_restricted_ell_no_tp/'
+in_dir = '/Users/kirstencasey/real_image_tests/imfit_sbf/'
+save_dir = '/Users/kirstencasey/real_image_tests/imfit_sbf/'
 config_filename = os.path.join('../modeling-config_imfit.yml')
-fn_stub = 'random_position_single_artpop_sersic_fixed_on_b_free_pa_restricted_ell_no_tp'
-fn_id_r = f'random_position_mock_injected_Sersic_bestfit-params_{fn_stub}_iter*_r.txt'
-fn_id_b = f'random_position_mock_injected_Sersic_bestfit-params_{fn_stub}_iter*_b.txt'
-files_r = glob.glob(in_dir+fn_id_r)
-files_b = glob.glob(in_dir+fn_id_b)
+fn_stub = 'real_image_tests_fixed_artpop_fix_sersic_on_b_autogenmask'
+fn_id_r = f'cutout_SEsky_mock_injected_Sersic_bestfit-params_{fn_stub}_iter*_r.txt'
+fn_id_b = f'cutout_SEsky_mock_injected_Sersic_bestfit-params_{fn_stub}_iter*_b.txt'
+files_r = glob.glob(os.path.join(in_dir,fn_id_r))
+files_b = glob.glob(os.path.join(in_dir,fn_id_b))
 random_artpops = True
-num_iters = 50
+random_sersics = False
+model_funcs = ['Sersic']
 
-fractional = True
 # Open and read config file
 with open(config_filename, 'r') as filename:
     config = yaml.load(filename, Loader=yaml.FullLoader)
 
+def sort_key(fn):
+    return int(fn.split('_iter')[-1].split('_')[0])
+files_r.sort(key=sort_key)
+files_b.sort(key=sort_key)
+
 # Read files
+chisq_r = []
+chisq_b = []
 radii = []
 pa = []
 ell = []
@@ -38,7 +46,7 @@ x_slopes_r = []
 y_slopes_r = []
 x_slopes_b = []
 y_slopes_b = []
-
+num_iters = len(files_r)
 comp = 'comp_1'
 r_true = 149.323 #221.02 #224.133
 pa_true = 0 #9.53788
@@ -55,39 +63,43 @@ sbf_mag_true = 26.70403490761306 # 26.734176700344815
 true_dist = 3.7 # Mpc
 
 plot_I_e = False
+if random_artpops: model_type = 'artpop'
+elif random_sersics : model_type = 'sersic'
 
-if random_artpops:
+if random_artpops or random_sersics:
     plot_I_e = False
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_true_sbf_magnitude', "rb")
-    sbf_mag_true = np.load(file,allow_pickle=True)
-    file.close
+    if not random_sersics:
+        file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_true_sbf_magnitude', "rb")
+        sbf_mag_true = np.load(file,allow_pickle=True)
+        file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_n', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_n', "rb")
     n_true = np.load(file,allow_pickle=True)
     file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_theta', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_theta', "rb")
     pa_true = np.load(file,allow_pickle=True)
     file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_ellipticity', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_ellipticity', "rb")
     ell_true = np.load(file,allow_pickle=True)
     file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_distance', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_distance', "rb")
     true_dist = np.load(file,allow_pickle=True)
     file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_radius', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_radius', "rb")
     r_true = np.load(file,allow_pickle=True)
-    r_true = np.arctan(r_true/(true_dist*1e6)) * 180 / np.pi * 3600 / config['pixscale']
+    if random_artpops:
+        r_true = np.arctan(r_true/(true_dist*1e6)) * 180 / np.pi * 3600 / config['pixscale'] # convert to pixels
     file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_mag_r', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_mag_r', "rb")
     mag_r_true = np.load(file,allow_pickle=True)
     file.close
 
-    file = open(in_dir+f'artpop_parameters_{fn_stub}_num-iters{num_iters}_mag_b', "rb")
+    file = open(in_dir+f'{model_type}_parameters_{fn_stub}_num-iters{num_iters}_mag_b', "rb")
     mag_b_true = np.load(file,allow_pickle=True)
     file.close
 
@@ -97,9 +109,11 @@ for i in range(len(files_r)):
     fn_r = files_r[i]
     fn_b = files_b[i]
 
-    bestfit_r = io.read_results(fn_r, ['Sersic'])
-    bestfit_b = io.read_results(fn_b, ['Sersic'])
+    bestfit_r = io.read_results(fn_r, model_funcs )
+    bestfit_b = io.read_results(fn_b, model_funcs )
 
+    chisq_r.append(bestfit_r['reduced_chisq'])
+    chisq_b.append(bestfit_b['reduced_chisq'])
     radii.append(bestfit_r[comp]['r_e'])
     pa.append(bestfit_r[comp]['PA'])
     ell.append(bestfit_r[comp]['ell'])
@@ -108,19 +122,25 @@ for i in range(len(files_r)):
     ypos.append(bestfit_r[comp]['Y0'])
     I_e_r.append(bestfit_r[comp]['I_e'])
     I_e_b.append(bestfit_b[comp]['I_e'])
-    if comp == 'comp_2':
+    if comp == 'comp_2' and model_funcs[0]=='TiltedSkyPlane':
         sky_r.append(bestfit_r['comp_1']['I_0'])
         x_slopes_r.append(bestfit_r['comp_1']['m_x'])
         y_slopes_r.append(bestfit_r['comp_1']['m_y'])
         sky_b.append(bestfit_b['comp_1']['I_0'])
         x_slopes_b.append(bestfit_b['comp_1']['m_x'])
         y_slopes_b.append(bestfit_b['comp_1']['m_y'])
+    elif comp == 'comp_2' and model_funcs[0]=='FlatSky':
+        sky_r.append(bestfit_r['comp_1']['I_sky'])
+        sky_b.append(bestfit_b['comp_1']['I_sky'])
+
     iters.append(i)
 
     mag_r, mag_b, color = imfit.summarize_results(config, bestfit_r[comp], bestfit_b[comp])
     mags_r.append(mag_r)
     mags_b.append(mag_b)
 
+chisq_r=np.asarray(chisq_r)
+chisq_b=np.asarray(chisq_b)
 radii=np.asarray(radii)
 pa=np.asarray(pa)
 ell=np.asarray(ell)
@@ -144,97 +164,206 @@ radii_err = (radii - r_true) / r_true
 pa_err = pa - pa_true
 ell_err = ell - ell_true
 n_err = (n - n_true) / n_true
-xpos_err = (xpos - xpos_true) / xpos_true
-ypos_err = (ypos - ypos_true) / ypos_true
+xpos_err = xpos - 1 - xpos_true
+ypos_err = ypos - 1 - ypos_true
 I_e_r_err = (I_e_r - I_e_r_true) / I_e_r_true
 I_e_b_err =(I_e_b - I_e_b_true) / I_e_b_true
-mags_r_err = (mags_r - mag_r_true) / mag_r_true
-mags_b_err = (mags_b - mag_b_true) / mag_b_true
-colors_err = (colors - color_true) / color_true
-dist_err = np.sqrt(xpos_err**2 + ypos_err**2)
-'''
-# Make plots of results
-Nbins = 10
-bins = np.linspace(0, 1, Nbins +1, endpoint=True)
-# get some fake data
-x = np.random.rand(300)
-y = np.arange(300)
-# figure out which bin each x goes into
-bin_num = np.digitize(x, bins, right=True) - 1
-# compute the counts per bin
-hist_vals = np.bincount(bin_num)
-# set up array for bins
-means = np.zeros(Nbins)
-# numpy slicing magic to sum the y values by bin
-means[bin_num] += y
-# take the average
-means /= hist_vals
-
-# make the figure/axes objects
-fig, ax = plt.subplots(1,1)
-# get a color map
-my_cmap = cm.get_cmap('jet')
-# get normalize function (takes data in range [vmin, vmax] -> [0, 1])
-my_norm = Normalize()
-# use bar plot
-ax.bar(bins[:-1], hist_vals, color=my_cmap(my_norm(means)), width=np.diff(bins))
-'''
+mags_r_err = mags_r - mag_r_true
+mags_b_err = mags_b - mag_b_true
+colors_err = colors - color_true
+pos_err = np.sqrt(xpos_err**2 + ypos_err**2)
 
 plt.clf()
 plt.scatter(radii_err, n_err,color='purple')
-plt.xlabel('Radius Error')
+plt.xlabel('Fractional Radius Error')
 plt.ylabel('Sersic index Error (b-band)')
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_n_err.png')
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_n_err.png')
 
 if plot_I_e:
     plt.clf()
     plt.scatter(radii_err, I_e_r_err,color='purple')
-    plt.xlabel('Radius Error')
+    plt.xlabel('Fractional Radius Error')
     plt.ylabel('Ie Error (r-band)')
-    plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_e_r_err.png')
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_e_r_err.png')
 
     plt.clf()
     plt.scatter(radii_err, I_e_b_err,color='purple')
-    plt.xlabel('Radius Error')
+    plt.xlabel('Fractional Radius Error')
     plt.ylabel('Ie Error (b-band)')
-    plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_e_b_err.png')
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_e_b_err.png')
 
 plt.clf()
 plt.scatter(radii_err, mags_r_err,color='purple')
-plt.xlabel('Radius Error')
+plt.xlabel('Fractional Radius Error')
 plt.ylabel('Magnitude Error (r-band)')
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_mag_r_err.png')
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_mag_r_err.png')
 
 plt.clf()
 plt.scatter(radii_err, mags_b_err ,color='purple')
-plt.xlabel('Radius Error')
+plt.xlabel('Fractional Radius Error')
 plt.ylabel('Magnitude Error (b-band)')
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_mag_b_err.png')
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_mag_b_err.png')
 
 plt.clf()
 plt.scatter(radii_err, colors_err,color='purple')
-plt.xlabel('Radius Error')
+plt.xlabel('Fractional Radius Error')
 plt.ylabel('Color Error')
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_color_err.png')
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_color_err.png')
 
 plt.clf()
-plt.scatter(radii_err, dist_err,color='purple')
-plt.xlabel('Radius Error')
-plt.ylabel('Distance Error')
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_dist_err.png')
+plt.scatter(xpos_err, ypos_err,color='purple')
+plt.xlabel('x-pos Error')
+plt.ylabel('y-pos Error')
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_position_err.png')
+
+plt.clf()
+plt.scatter(pos_err,radii_err,color='purple')
+plt.ylabel('Fractional Radius Error')
+plt.xlabel('Position Error (pixels)')
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_pos_err.png')
+
+plt.clf()
+plt.scatter(radii, pos_err,color='purple')
+plt.xlabel('ArtPop Radius')
+plt.ylabel('Position Error (pixels)')
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_pos_err.png')
+
+plt.clf()
+plt.scatter(radii, radii_err,color='purple')
+plt.xlabel('ArtPop Radius')
+plt.ylabel('Fractional Radius Error')
+plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_fracradius_err.png')
+plt.clf()
+plt.scatter(radii_err,chisq_b,color='purple')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.xlabel('Fractional Radius Error')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_radius_err.png')
+plt.clf()
+plt.scatter(chisq_b, chisq_r,color='purple')
+plt.xlabel('Reduced Chi Squared (b-band)')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_chisqr.png')
+plt.clf()
+plt.scatter(pos_err, chisq_b,color='purple')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.xlabel('Position Error (pixels)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_pos_err.png')
+plt.clf()
+plt.scatter(colors_err,chisq_b,color='purple')
+plt.xlabel('Color Error')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_color_err.png')
+plt.clf()
+plt.scatter(mags_r_err, chisq_r, color='purple')
+plt.xlabel('Magnitude Error (r-band)')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_mag_r_err.png')
+plt.clf()
+plt.scatter(mags_b_err,chisq_b,color='purple')
+plt.xlabel('Magnitude Error (b-band)')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_mag_b_err.png')
+plt.clf()
+plt.scatter(n_err, chisq_b,color='purple')
+plt.xlabel('Sersic Index Error')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_n_err.png')
+plt.clf()
+plt.scatter(ell_err, chisq_b,color='purple')
+plt.xlabel('Ellipticity Error')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_ell_err.png')
+plt.clf()
+plt.scatter(pa_err, chisq_b,color='purple')
+plt.xlabel('Position Angle Error')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_pa_err.png')
+plt.clf()
+plt.scatter(radii_err,chisq_r,color='purple')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.xlabel('Fractional Radius Error')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_radius_err.png')
+plt.clf()
+plt.scatter(pos_err, chisq_r,color='purple')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.xlabel('Position Error (pixels)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_pos_err.png')
+plt.clf()
+plt.scatter(colors_err,chisq_r,color='purple')
+plt.xlabel('Color Error')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_color_err.png')
+plt.clf()
+plt.scatter(mags_r_err, chisq_b, color='purple')
+plt.xlabel('Magnitude Error (b-band)')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_mag_r_err.png')
+plt.clf()
+plt.scatter(mags_b_err,chisq_r,color='purple')
+plt.xlabel('Magnitude Error (r-band)')
+plt.ylabel('Reduced Chi Squared (b-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_mag_b_err.png')
+plt.clf()
+plt.scatter(n_err, chisq_r,color='purple')
+plt.xlabel('Sersic Index Error')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_n_err.png')
+plt.clf()
+plt.scatter(ell_err, chisq_r,color='purple')
+plt.xlabel('Ellipticity Error')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_ell_err.png')
+plt.clf()
+plt.scatter(pa_err, chisq_r,color='purple')
+plt.xlabel('Position Angle Error')
+plt.ylabel('Reduced Chi Squared (r-band)')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_pa_err.png')
 
 if comp == 'comp_2':
     plt.clf()
     plt.scatter(radii_err, sky_r,color='purple')
-    plt.xlabel('Radius Error')
+    plt.xlabel('Fractional Radius Error')
     plt.ylabel('Sky Level (r-band)')
-    plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_0_r.png')
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_0_r.png')
     plt.clf()
     plt.scatter(radii_err, sky_b,color='purple')
-    plt.xlabel('Radius Error')
+    plt.xlabel('Fractional Radius Error')
     plt.ylabel('Sky Level (b-band)')
-    plt.savefig(in_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_0_b.png')
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axhline(y=0, color='black', linestyle='dashed', linewidth=3)
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_radius_err_I_0_b.png')
 
+plt.clf()
+#bins = np.linspace((config['sersic_params']['r_e_min']-r_true)/r_true,(config['sersic_params']['r_e_max']-r_true)/r_true,num_bins)
+plt.hist(pos_err,bins='auto',color='purple',alpha=0.8)
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axvline(x=np.mean(pos_err), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean(pos_err),3)}')
+plt.xlabel('Position Error (pixels)')
+plt.axvline(x=np.median(pos_err), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(pos_err),3)}')
+plt.legend(prop={'size': 15})
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_position.png')
 
 plt.clf()
 #bins = np.linspace((config['sersic_params']['r_e_min']-r_true)/r_true,(config['sersic_params']['r_e_max']-r_true)/r_true,num_bins)
@@ -244,7 +373,7 @@ plt.axvline(x=np.mean((radii-r_true)/r_true), color='firebrick', linestyle='dash
 plt.xlabel('Fractional Radius Error')
 plt.axvline(x=np.median((radii-r_true)/r_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median((radii-r_true)/r_true),3)}')
 plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_radii.png')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_radii.png')
 
 plt.clf()
 #num_bins = 20
@@ -255,7 +384,18 @@ plt.axvline(x=np.mean(n-n_true), color='firebrick', linestyle='dashed', linewidt
 plt.xlabel('Sersic Index Error')
 plt.axvline(x=np.median(n-n_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(n-n_true),3)}')
 plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_n.png')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_n.png')
+
+plt.clf()
+#num_bins = 20
+#bins = np.linspace(config['sersic_params']['n_min']-n_true,config['sersic_params']['n_max']-n_true,num_bins)
+plt.hist(ell-ell_true,bins='auto',color='purple',alpha=0.8)
+plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+plt.axvline(x=np.mean(ell-ell_true), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean(ell-ell_true),3)}')
+plt.xlabel('Ellipticity Error')
+plt.axvline(x=np.median(ell-ell_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(ell-ell_true),3)}')
+plt.legend(prop={'size': 15})
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_ell.png')
 
 if plot_I_e:
     plt.clf()
@@ -267,7 +407,7 @@ if plot_I_e:
     plt.xlabel('Intensity Error (r-band)')
     plt.axvline(x=np.median(I_e_r-I_e_r_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(I_e_r-I_e_r_true),3)}')
     plt.legend(prop={'size': 15})
-    plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_I_e_r.png')
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_I_e_r.png')
 
     plt.clf()
     #num_bins = 20
@@ -278,7 +418,7 @@ if plot_I_e:
     plt.xlabel('Intensity Error (b-band)')
     plt.axvline(x=np.median(I_e_b-I_e_b_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(I_e_b-I_e_b_true),3)}')
     plt.legend(prop={'size': 15})
-    plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_I_e_b.png')
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_I_e_b.png')
 
 plt.clf()
 #num_bins = 20
@@ -289,7 +429,7 @@ plt.axvline(x=np.mean(mags_r-mag_r_true), color='firebrick', linestyle='dashed',
 plt.xlabel('Magnitude Error (r-band)')
 plt.axvline(x=np.median(mags_r-mag_r_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(mags_r-mag_r_true),3)}')
 plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_mags_r.png')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_mags_r.png')
 
 plt.clf()
 #num_bins = 20
@@ -300,7 +440,7 @@ plt.axvline(x=np.mean(mags_b-mag_b_true), color='firebrick', linestyle='dashed',
 plt.xlabel('Magnitude Error (b-band)')
 plt.axvline(x=np.median(mags_b-mag_b_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(mags_b-mag_b_true),3)}')
 plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_mags_b.png')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_mags_b.png')
 
 plt.clf()
 #num_bins = 20
@@ -311,69 +451,102 @@ plt.axvline(x=np.mean(colors-color_true), color='firebrick', linestyle='dashed',
 plt.xlabel('Color Error')
 plt.axvline(x=np.median(colors-color_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(colors-color_true),3)}')
 plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_colors.png')
+plt.savefig(save_dir+f'imfit_results_{fn_stub}_num-iters{num_iters}_colors.png')
 
 
 ###### SBF Magnitude stuff
+if not random_sersics :
+    file = open(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_weighted_avg_sbf_mags', "rb")
+    sbf_mags = np.load(file,allow_pickle=True)
+    file.close
+    file = open(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_weighted_avg_sbf_dist_a', "rb")
+    sbf_dist_a = np.load(file,allow_pickle=True)
+    file.close
+    file = open(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_weighted_avg_sbf_dist_b', "rb")
+    sbf_dist_b = np.load(file,allow_pickle=True)
+    file.close
 
-file = open(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_weighted_avg_sbf_mags', "rb")
-sbf_mags = np.load(file,allow_pickle=True)
-file.close
-file = open(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_weighted_avg_sbf_dist_a', "rb")
-sbf_dist_a = np.load(file,allow_pickle=True)
-file.close
-file = open(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_weighted_avg_sbf_dist_b', "rb")
-sbf_dist_b = np.load(file,allow_pickle=True)
-file.close
+    plt.clf()
+    plt.scatter(sbf_mags-sbf_mag_true, chisq_r,color='purple')
+    plt.xlabel('SBF magnitude Error')
+    plt.ylabel('Reduced Chi Squared (r-band)')
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_sbfmag_err.png')
+    plt.clf()
+    plt.scatter(sbf_mags-sbf_mag_true, chisq_b,color='purple')
+    plt.xlabel('SBF magnitude Error')
+    plt.ylabel('Reduced Chi Squared (b-band)')
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_sbfmag_err.png')
+    plt.clf()
+    plt.scatter((sbf_dist_a/1e6)-true_dist, chisq_r,color='purple')
+    plt.xlabel('Distance Error (Mpc)')
+    plt.ylabel('Reduced Chi Squared (r-band)')
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqr_dist_err.png')
+    plt.clf()
+    plt.scatter((sbf_dist_a/1e6)-true_dist, chisq_b,color='purple')
+    plt.xlabel('Distance Error (Mpc)')
+    plt.ylabel('Reduced Chi Squared (b-band)')
+    plt.savefig(save_dir+f'imfit_results_{fn_stub}_compare_chisqb_dist_err.png')
+
+    plt.clf()
+    plt.hist(sbf_mags-sbf_mag_true,bins='auto',color='purple',alpha=0.8)
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axvline(x=np.mean(sbf_mags-sbf_mag_true), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean(sbf_mags-sbf_mag_true),3)}')
+    plt.axvline(x=np.median(sbf_mags-sbf_mag_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(sbf_mags-sbf_mag_true),3)}')
+    plt.xlabel('SBF Magnitude Error')
+    plt.legend(prop={'size': 15})
+    plt.savefig(save_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_sbfmagnitude.png')
+
+    plt.clf()
+    plt.hist((sbf_dist_a/1e6)-true_dist,bins='auto',color='purple',alpha=0.8,range=(-1,2))
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axvline(x=np.mean((sbf_dist_a/1e6)-true_dist), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean((sbf_dist_a/1e6)-true_dist),3)}')
+    plt.axvline(x=np.median((sbf_dist_a/1e6)-true_dist), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median((sbf_dist_a/1e6)-true_dist),3)}')
+    plt.xlabel('SBF Distance Error A (Jerjen Eqn. 2)')
+    plt.legend(prop={'size': 15})
+    plt.savefig(save_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_distance_a.png')
+
+    plt.clf()
+    plt.hist((sbf_dist_b/1e6)-true_dist,bins='auto',color='purple',alpha=0.8, range=(-1,2))
+    plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
+    plt.axvline(x=np.mean((sbf_dist_b/1e6)-true_dist), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean((sbf_dist_b/1e6)-true_dist),3)}')
+    plt.axvline(x=np.median((sbf_dist_b/1e6)-true_dist), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median((sbf_dist_b/1e6)-true_dist),3)}')
+    plt.xlabel('SBF Distance Error B (Jerjen Eqn. 3)')
+    plt.legend(prop={'size': 15})
+    plt.savefig(save_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_distance_b.png')
+
 
 plt.clf()
-plt.hist(sbf_mags-sbf_mag_true,bins='auto',color='purple',alpha=0.8)
-plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
-plt.axvline(x=np.mean(sbf_mags-sbf_mag_true), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean(sbf_mags-sbf_mag_true),3)}')
-plt.axvline(x=np.median(sbf_mags-sbf_mag_true), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median(sbf_mags-sbf_mag_true),3)}')
-plt.xlabel('SBF Magnitude Error')
-plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_sbfmagnitude.png')
+plt.scatter(mags_r-mag_r_true, sbf_mags-sbf_mag_true,color='purple')
+plt.xlabel('Magnitude Error (r-band)')
+plt.ylabel('SBF Magnitude Error')
+plt.savefig(save_dir+f'sbf_results_{fn_stub}_mag_r_err_sbfmag_err.png')
 
 plt.clf()
-plt.hist((sbf_dist_a/1e6)-true_dist,bins='auto',color='purple',alpha=0.8,range=(-1,2))
-plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
-plt.axvline(x=np.mean((sbf_dist_a/1e6)-true_dist), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean((sbf_dist_a/1e6)-true_dist),3)}')
-plt.axvline(x=np.median((sbf_dist_a/1e6)-true_dist), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median((sbf_dist_a/1e6)-true_dist),3)}')
-plt.xlabel('SBF Distance Error A (Jerjen Eqn. 2)')
-plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_distance_a.png')
+plt.scatter(mags_b-mag_b_true, sbf_mags-sbf_mag_true,color='purple')
+plt.xlabel('Magnitude Error (b-band)')
+plt.ylabel('SBF Magnitude Error')
+plt.savefig(save_dir+f'sbf_results_{fn_stub}_mag_b_err_sbfmag_err.png')
 
 plt.clf()
-plt.hist((sbf_dist_b/1e6)-true_dist,bins='auto',color='purple',alpha=0.8, range=(-1,2))
-plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
-plt.axvline(x=np.mean((sbf_dist_b/1e6)-true_dist), color='firebrick', linestyle='dashed', linewidth=3, label=f'average: {round(np.mean((sbf_dist_b/1e6)-true_dist),3)}')
-plt.axvline(x=np.median((sbf_dist_b/1e6)-true_dist), color='gold', linestyle='dashed', linewidth=3, label=f'median: {round(np.median((sbf_dist_b/1e6)-true_dist),3)}')
-plt.xlabel('SBF Distance Error B (Jerjen Eqn. 3)')
-plt.legend(prop={'size': 15})
-plt.savefig(in_dir+f'sbf_results_{fn_stub}_num-iters{num_iters}_distance_b.png')
+plt.scatter(colors-color_true, sbf_mags-sbf_mag_true,color='purple')
+plt.xlabel('Color Error')
+plt.ylabel('SBF Magnitude Error')
+plt.savefig(save_dir+f'sbf_results_{fn_stub}_color_err_sbfmag_err.png')
+
+plt.clf()
+plt.scatter(colors-color_true, (sbf_dist_a/1e6)-true_dist,color='purple')
+plt.xlabel('Color Error')
+plt.ylabel('SBF Distance Error A (Jerjen Eqn. 2)')
+plt.savefig(save_dir+f'sbf_results_{fn_stub}_color_err_dist_err.png')
+
+plt.clf()
+plt.scatter(mags_r-mag_r_true, (sbf_dist_a/1e6)-true_dist,color='purple')
+plt.xlabel('Magnitude Error (r-band)')
+plt.ylabel('SBF Distance Error A (Jerjen Eqn. 2)')
+plt.savefig(save_dir+f'sbf_results_{fn_stub}_mag_r_err_dist_err.png')
+
 
 '''
-plt.clf()
-plt.scatter(mag_r_true, sbf_mags-sbf_mag_true,color='purple')
-plt.xlabel('r-band Magnitude')
-plt.ylabel('SBF Magnitude Error')
-plt.savefig(in_dir+f'sbf_results_{fn_stub}_artpop_mag_r_sbfmag_err.png')
-
-plt.clf()
-plt.scatter(mag_b_true, sbf_mags-sbf_mag_true,color='purple')
-plt.xlabel('b-band Magnitude')
-plt.ylabel('SBF Magnitude Error')
-plt.savefig(in_dir+f'sbf_results_{fn_stub}_artpop_mag_b_sbfmag_err.png')
-
-plt.clf()
-plt.scatter(r_true, sbf_mags-sbf_mag_true,color='purple')
-plt.xlabel('Galaxy Radius (pc)')
-plt.ylabel('SBF Magnitude Error')
-plt.savefig(in_dir+f'sbf_results_{fn_stub}_artpop_radius_sbfmag_err.png')
-
-
-
 bad_rad_mask = abs(radii_err) > 10.
 good_rad_mask = ~bad_rad_mask
 really_good_rad_mask = abs(radii_err) < 2.

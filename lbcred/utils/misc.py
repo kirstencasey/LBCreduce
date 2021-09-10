@@ -21,6 +21,7 @@ __all__ = [
     'func_timer',
     'is_list_like',
     'list_of_strings',
+    'list_of_floats',
     'make_list_like_if_needed',
     'parse_dates_to_list',
     'reverse_dict',
@@ -29,6 +30,7 @@ __all__ = [
     'fetch_psf',
     'fetch_cutout',
     'inject_model',
+    'filter_dict'
 ]
 
 
@@ -126,6 +128,21 @@ def list_of_strings(str_or_list):
     else:
         Exception('{} is not correct type for list of str'.format(str_or_list))
     return ls_str
+
+def list_of_floats(str):
+    """
+    Return a list of floats from a single string of comma-separated values.
+    """
+    # Get list of strings
+    str.replace(' ', '')
+    if str is '': return []
+
+    lst = list_of_strings(str)
+    ls_floats = []
+
+    for str in lst: ls_floats.append(float(str))
+
+    return ls_floats
 
 
 def make_list_like_if_needed(obj):
@@ -253,16 +270,16 @@ def fetch_cutout(ra, dec, bands='grz', size = 1500, save_files=False, fn_root='l
         return image_dict, image_headers, invvar_dict, invvar_headers
 
 
-def inject_model(image, model, xpos, ypos):
+def inject_model(image, model, xpos, ypos, model_extname = None):
 
     image = io.load_path_or_pixels(image)
-    model = io.load_path_or_pixels(model)
+    model = io.load_path_or_pixels(model, extname=model_extname)
 
     # work on deep copy in case we want to make adjustments
     mock_image = deepcopy(image)
 
     # get slices to inject source
-    img_slice, arr_slice = embed_slices((xpos,ypos), model.shape, model.shape)
+    img_slice, arr_slice = embed_slices((xpos,ypos), model.shape, image.shape) # Before I had embed_slices((xpos,ypos), model.shape, model.shape)
 
     # inject source into image
     mock_image[img_slice] += model[arr_slice]
@@ -295,3 +312,82 @@ def make_cutout(original_img_fn, position, shape, ext, cutout_fn=None):
 
 def get_chisquare(f_obs, f_exp):
     return np.sum((f_obs-f_exp)**2)
+
+def parsecs_to_pixels(parsecs, distance, pixel_scale):
+
+    rads = np.arctan(parsecs/distance)
+    arcseconds = rads * 180 / np.pi * 3600
+    pixels = arcseconds / pixel_scale
+
+    return pixels
+
+def filter_dict(dictionary, desired_param=None, conditions={}, condition_type={}, return_mask=False):
+    '''
+    dictionary : dictionary to be filtered, elements must be numpy arrays, not lists
+
+    desired_param : desired param array to be returned
+
+    conditions : dict where keys are available params and values are those that need to be True in the returned arrays.
+                ex. conditions={'background_models' : 'median'} -> only results that have a median background model will be returned
+
+    condition_type : dict of str ('less than', 'greater than'), used when evaluating conditions, if none provided assumes 'equal to'
+    '''
+
+    if len(conditions) is 0 and desired_param is not None:
+        if return_mask:
+            return dictionary[desired_param], None
+        else: return dictionary[desired_param]
+
+    mask = np.array([])
+    for key,value in conditions.items():
+        if len(mask)==0:
+            if len(condition_type) is 0:
+                mask = dictionary[key]==value
+            elif condition_type[key] == 'less than':
+                mask = dictionary[key]<value
+            elif condition_type[key] == 'greater than':
+                mask = dictionary[key]>value
+
+        else:
+            if len(condition_type) is 0:
+                mask &= dictionary[key]==value
+            elif condition_type[key] == 'less than':
+                mask &= dictionary[key]<value
+            elif condition_type[key] == 'greater than':
+                mask &= dictionary[key]>value
+
+    if desired_param is None:
+        filtered = {}
+        for key,item in dictionary.items():
+            filtered[key] = dictionary[key][mask]
+    else:
+        filtered = dictionary[desired_param][mask]
+
+    if return_mask: return filtered, np.asarray(mask)
+    else: return filtered
+
+def merge_dicts(dict_list):
+
+    '''
+    Each dictionary in the list must have identical keys where each value in the dictionary is an array.
+    The resulting dict will be a vertical stack of all the arrays in each dictionary.
+    '''
+
+    num_dicts = len(dict_list)
+
+    if num_dicts is 1 : return dict_list[0]
+    result={}
+
+    for dict_idx in range(num_dicts):
+        if dict_idx is 0:
+            for key,arr1 in dict_list[dict_idx].items():
+                arr2 = dict_list[dict_idx+1][key]
+                new_arr = np.append(arr1,arr2)
+                result[key] = new_arr
+        elif dict_idx is not num_dicts-1:
+            for key,arr1 in result.items():
+                arr2 = dict_list[dict_idx+1][key]
+                new_arr = np.append(arr1,arr2)
+                result[key] = new_arr
+
+    return result

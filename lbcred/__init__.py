@@ -20,3 +20,4 @@ from .modeling_imfit import modeling_imfit
 from .modeling_sbf import modeling_sbf
 from .improc import resample_image
 from .reduce import reduce
+from .register_calibrate import calibrate_images, register_images

@@ -3,10 +3,11 @@ import numpy as np
 from astropy.io import fits
 from astropy import units as u
 
+def run_artimager(config, options={}):
 
-
-
-def run_artimager(config):
+    # Replace config with options
+    for key in options:
+        config[key] = options[key]
 
     psf1 = fits.getdata(os.path.join(config['image_dir'],config['color1']['psf']))
     psf2 = fits.getdata(os.path.join(config['image_dir'],config['color2']['psf']))
@@ -34,6 +35,7 @@ def run_artimager(config):
         random_state = np.random.RandomState(config['random_state']),   # random state for reproducibility
         mist_path = config['mist_path'],
         pixel_scale = config['pixscale'],                               # pixel scale in arcsec / pixel
+        add_remnants = config['add_remnants']
     )
 
     #colors = src.mags[config['color2']['artpop_band']] - src.mags[config['color1']['artpop_band']]
@@ -43,7 +45,7 @@ def run_artimager(config):
     term2 = color_inst*config['color2']['color_term']
 
     src.mags[config['color1']['artpop_band']] = src.mags[config['color1']['artpop_band']] + 0.190278 + config['color1']['extinction'] + term1    # Vega -> AB mags, color/extinction correction
-    src.mags[config['color2']['artpop_band']] = src.mags[config['color2']['artpop_band']]  - 0.107512 + config['color2']['extinction'] + term2   # Vega -> AB mags, color/extinction correction
+    src.mags[config['color2']['artpop_band']] = src.mags[config['color2']['artpop_band']] - 0.107512 + config['color2']['extinction'] + term2   # Vega -> AB mags, color/extinction correction
 
     if config['include_sky_sb']:
         sky_sb1 = config['color1']['sky_sb']
@@ -66,12 +68,53 @@ def run_artimager(config):
     model1 = model1 / config['gain']
     model2 = model2 / config['gain']
 
-    hdu1 = fits.PrimaryHDU(model1)
-    hdu1.writeto(os.path.join(config['out_dir'], config['color1']['artpop_model_fn']),overwrite=True)
-    hdu2 = fits.PrimaryHDU(model2)
-    hdu2.writeto(os.path.join(config['out_dir'], config['color2']['artpop_model_fn']),overwrite=True)
+    header = fits.Header(config['artpop_model_params'])
+    header[config['color1']['artpop_band']+'_mag'] = src.sp.total_mag(config['color1']['artpop_band'])
+    header[config['color2']['artpop_band']+'_mag'] = src.sp.total_mag(config['color2']['artpop_band'])
+    header[config['color1']['artpop_band']+'_sbfmag'] = src.sp.sbf_mag(config['color1']['artpop_band'])
+    header[config['color1']['artpop_band']+'_zpt'] = config['color1']['zpt']
+    header[config['color2']['artpop_band']+'_zpt'] = config['color2']['zpt']
+    header[config['color1']['artpop_band']+'_extinction'] = config['color1']['extinction']
+    header[config['color2']['artpop_band']+'_extinction'] = config['color2']['extinction']
+    header[config['color1']['artpop_band']+'_color_term'] = config['color1']['color_term']
+    header[config['color2']['artpop_band']+'_color_term'] = config['color2']['color_term']
+    header['sky_sb_included'] = config['include_sky_sb']
+    header['readnoise_included'] = config['include_readnoise']
+    if config['include_sky_sb']:
+        header[config['color1']['artpop_band']+'_sky_sb'] = config['color1']['sky_sb']
+        header[config['color2']['artpop_band']+'_sky_sb'] = config['color2']['sky_sb']
+    if config['include_readnoise']:
+        header['readnoise'] = config['readnoise']
+    header['color'] = src.sp.total_mag(config['color2']['artpop_band']) - src.sp.total_mag(config['color1']['artpop_band'])
 
-    return model1, model2, src
+    hdu0 = fits.PrimaryHDU(header=header)
+    header['EXTNAME'] = 'raw_counts'
+    hdu10 = fits.ImageHDU(model1, header=header)
+    hdu20 = fits.ImageHDU(model2, header=header)
+
+    header['EXTNAME'] = 'src_counts'
+    header['NOTE'] = 'Poisson noise added to original src_counts.'
+
+    if config['include_sky_sb'] or config['include_readnoise'] :
+        rng = artpop.util.check_random_state(config['random_state'])
+        obs1.src_counts[obs1.src_counts < 0] = 0.
+        obs2.src_counts[obs2.src_counts < 0] = 0.
+        model1_src = rng.poisson(obs1.src_counts) / config['gain']
+        model2_src = rng.poisson(obs2.src_counts) / config['gain']
+    else :
+        model1_src = model1
+        model2_src = model2
+
+    hdu11 = fits.ImageHDU(model1_src, header=header)
+    new_hdul1 = fits.HDUList([hdu0, hdu10, hdu11])
+    new_hdul1.writeto(os.path.join(config['out_dir'], config['color1']['artpop_model_fn']), overwrite=True)
+    hdu21 = fits.ImageHDU(model2_src, header=header)
+    new_hdul2 = fits.HDUList([hdu0, hdu20, hdu21])
+    new_hdul2.writeto(os.path.join(config['out_dir'], config['color2']['artpop_model_fn']), overwrite=True)
+
+    if config['use_src_counts'] : return model1_src, model2_src, src
+
+    else : return model1, model2, src
 
 def run_idealimager(config, image_fns, psf_fns):
 

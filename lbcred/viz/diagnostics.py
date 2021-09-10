@@ -6,6 +6,7 @@ from matplotlib.patches import Rectangle
 from ..astrometry import check_astrometric_solution, pixel_area_map
 from .. import utils
 from .. import package_dir
+from astropy.io import fits
 
 style = os.path.join(package_dir, 'viz/jpg.mplstyle')
 plt.style.use(style)
@@ -15,10 +16,10 @@ __all__ = ['wcs_quality_check', 'plot_distortion']
 
 
 def wcs_quality_check(check_astrom_out_or_kw, xlim=[-4.5, 4.5],
-                      ylim=[-4.5, 4.5], levels=25, subplots=None, 
-                      scatter_cmap='RdYlBu_r', fontsize=20, scatter_alpha=0.9, 
-                      draw_pam=True, draw_hists=True,  hist_percent_ax=0.2, 
-                      scatter_ec='k', pam_cmap='gray', pam_levels=25, 
+                      ylim=[-4.5, 4.5], levels=25, subplots=None,
+                      scatter_cmap='RdYlBu_r', fontsize=20, scatter_alpha=0.9,
+                      draw_pam=True, draw_hists=True,  hist_percent_ax=0.2,
+                      scatter_ec='k', pam_cmap='gray', pam_levels=25,
                       pam_line_color='gray', pam_line_alpha=0.5, **kwargs):
     if subplots is None:
         figsize = kwargs.pop('figsize', (16, 6))
@@ -35,7 +36,7 @@ def wcs_quality_check(check_astrom_out_or_kw, xlim=[-4.5, 4.5],
     sc_0 = ax[0].scatter(checked_astrom['delta_ra'],
                          checked_astrom['delta_dec'],
                          c=checked_astrom['dr_image'],
-                         s=35, cmap=scatter_cmap, alpha=scatter_alpha, 
+                         s=35, cmap=scatter_cmap, alpha=scatter_alpha,
                          ec=scatter_ec, zorder=10)
     cbar_0 = fig.colorbar(sc_0, ax=ax[0])
     cbar_0.ax.set_ylabel(r'$\Delta$R [pixels]', fontsize=fontsize)
@@ -43,7 +44,7 @@ def wcs_quality_check(check_astrom_out_or_kw, xlim=[-4.5, 4.5],
     ax[0].grid(True)
     ax[0].axhline(y=0, lw=2, color='k')
     ax[0].axvline(x=0, lw=2, color='k')
-    
+
     if draw_hists:
         kw = dict(alpha=0.1, color='k')
         ax_histx = ax[0].twinx()
@@ -54,18 +55,18 @@ def wcs_quality_check(check_astrom_out_or_kw, xlim=[-4.5, 4.5],
                       weights=w, color='k', histtype='step', lw=2)
         ax_histx.set(yticks=[])
         ax_histx.set_ylim(0, 1 / hist_percent_ax)
-        
+
         ax_histy = ax[0].twiny()
         counts, bins = np.histogram(checked_astrom['delta_dec'], bins='auto')
         w = np.ones_like(checked_astrom['delta_dec']) / counts.max()
-        ax_histy.hist(checked_astrom['delta_dec'], bins=bins, 
+        ax_histy.hist(checked_astrom['delta_dec'], bins=bins,
                       weights=w, orientation='horizontal', **kw)
-        ax_histy.hist(checked_astrom['delta_dec'], bins=bins, 
-                      weights=w, orientation='horizontal', color='k', 
+        ax_histy.hist(checked_astrom['delta_dec'], bins=bins,
+                      weights=w, orientation='horizontal', color='k',
                       histtype='step', lw=2)
         ax_histy.set(xticks=[])
         ax_histy.set_xlim(0, 1 / hist_percent_ax)
-    
+
     ax[0].set_xlabel(r'$\Delta \alpha$ [arcsec]', fontsize=fontsize)
     ax[0].set_ylabel(r'$\Delta \delta$ [arcsec]', fontsize=fontsize)
     ax[0].set_xlim(*xlim)
@@ -73,13 +74,13 @@ def wcs_quality_check(check_astrom_out_or_kw, xlim=[-4.5, 4.5],
     ax[0].minorticks_on()
 
     # plot 2: matched sources
-    # points are colored by the magnitude of the coorinate offset
+    # points are colored by the magnitude of the coordinate offset
     nx = checked_astrom['header']['NAXIS1']
     ny = checked_astrom['header']['NAXIS2']
     if draw_pam:
         pam = pixel_area_map(checked_astrom['header'])
         yy, xx = np.mgrid[1:ny+1, 1:nx+1]
-        ax[1].contourf(xx, yy, pam, cmap=pam_cmap, 
+        ax[1].contourf(xx, yy, pam, cmap=pam_cmap,
                        levels=pam_levels, zorder=-10)
         ax[1].contour(xx, yy, pam, colors=pam_line_color,
                       alpha=pam_line_alpha, levels=pam_levels, zorder=-5)
@@ -99,7 +100,7 @@ def wcs_quality_check(check_astrom_out_or_kw, xlim=[-4.5, 4.5],
     return fig, ax
 
 
-def plot_distortion(path_or_header, magnification=100, num_grid_lines=20, 
+def plot_distortion(path_or_header, magnification=100, num_grid_lines=20,
                     subplots=None, fontsize=26, **kwargs):
     """Draw a cartesian coordinate grid distorted by the WCS."""
 
@@ -107,7 +108,7 @@ def plot_distortion(path_or_header, magnification=100, num_grid_lines=20,
         figsize = kwargs.pop('figsize', (8, 6))
         fig, ax = plt.subplots(figsize=figsize, **kwargs)
         ax.set(xticks=[], yticks=[])
-    header = utils.load_path_or_header(path_or_header) 
+    header = utils.load_path_or_header(path_or_header)
     wcs = WCS(header)
 
     # Define the grid sampling
@@ -126,9 +127,9 @@ def plot_distortion(path_or_header, magnification=100, num_grid_lines=20,
         for xo in x:
             u_dummy.append([xo,yo])
             # Distortion-corrected
-            ra, dec = wcs.all_pix2world([xo], [yo], 1, ra_dec_order=True)       
+            ra, dec = wcs.all_pix2world([xo], [yo], 1, ra_dec_order=True)
             # Not distortion-corrected
-            [x_u, y_u] = wcs.wcs_world2pix(ra, dec, 1)                          
+            [x_u, y_u] = wcs.wcs_world2pix(ra, dec, 1)
             x_u = xo + magnification*(x_u - xo)
             y_u = yo + magnification*(y_u - yo)
             d_dummy.append([x_u[0], y_u[0]])
@@ -147,8 +148,8 @@ def plot_distortion(path_or_header, magnification=100, num_grid_lines=20,
         d_dummy = []
         for yo in y:
             u_dummy.append([xo,yo])
-            ra, dec = wcs.all_pix2world([xo], [yo], 1, ra_dec_order=True)       
-            [x_u, y_u] = wcs.wcs_world2pix(ra, dec, 1)                         
+            ra, dec = wcs.all_pix2world([xo], [yo], 1, ra_dec_order=True)
+            [x_u, y_u] = wcs.wcs_world2pix(ra, dec, 1)
             x_u = xo + magnification*(x_u - xo)
             y_u = yo + magnification*(y_u - yo)
             d_dummy.append([x_u[0], y_u[0]])
@@ -162,7 +163,7 @@ def plot_distortion(path_or_header, magnification=100, num_grid_lines=20,
         ax.plot(xl, yl,'r-', lw=2)
 
     # Set the plot range to correspond to the image dimensions.
-    ax.set_title("Exaggeration: {:.0f}x".format(magnification), 
+    ax.set_title("Exaggeration: {:.0f}x".format(magnification),
                  fontsize=fontsize, y=1.015)
     ax.axis('square')
     fig.tight_layout()

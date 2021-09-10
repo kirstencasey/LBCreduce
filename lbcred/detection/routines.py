@@ -15,7 +15,7 @@ def extract_bright_stars(path_or_pixels,catalog_path=None):
     cat = sextractor.run(path_or_pixels,
                          DETECT_MINAREA=3,
                          DETECT_THRESH=10,
-                         PIXEL_SCALE=0.225,
+                         PIXEL_SCALE=0.224,
                          catalog_path=catalog_path)
     star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and \
                   FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
@@ -24,7 +24,7 @@ def extract_bright_stars(path_or_pixels,catalog_path=None):
 
 
 def sextractor_sky_model(path_or_pixels, run_label=None, tmp_path='/tmp',
-                         sky_fn=None, **sextractor_options):
+                         sky_fn=None, box_size=512, **sextractor_options):
     label = '' if run_label is None else '_' + run_label
     if sky_fn is not None:
         created_tmp = False
@@ -36,7 +36,7 @@ def sextractor_sky_model(path_or_pixels, run_label=None, tmp_path='/tmp',
         options[k.upper()] = v
     config = dict(CHECKIMAGE_TYPE='BACKGROUND',
                   CHECKIMAGE_NAME=sky_fn,
-                  BACK_SIZE=512,
+                  BACK_SIZE=box_size,
                   tmp_path=tmp_path,
                   run_label=run_label)
     config['DETECT_THRESH'] = options.pop('DETECT_THRESH', 2)

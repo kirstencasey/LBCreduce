@@ -3,24 +3,24 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to model.
 
-image_dir : '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing'  # Where all the files needed for image reduction are located
-out_dir :  '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+image_dir : '/Users/kirstencasey/real_image_tests/imfit_sbf' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing'  # Where all the files needed for image reduction are located
+out_dir :  '/Users/kirstencasey/real_image_tests/imfit_sbf' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
 model_fn : 'artpop_sersic_r.fits' #'random_position_mock_injected_sersic_tiltedplane_model_r_2_Sersic.fits' #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
 resid_fn : 'artpop_sersic_resid_r.fits' #'random_position_mock_injected_sersic_tiltedplane_resid_r.fits' #'mean_stack_cutout_sersic_tiltedplane_resid_r.fits' # If create_resid_from_model is True then this is the filename the created residual will be saved under
 create_resid_from_model : False
 orig_image_fn : 'noise_artpop_injected_r.fits' # This is ignored unless create_resid_from_model is True
 model_summary_fn : #'blank_sky_near_star_mock_injected_sersic_tiltedplane_bestfit-params_r.txt' #'mean_stack_cutout_sersic_tiltedplane_bestfit-params_r.txt'
 psf : 'lbcr.median_psf_298.fits'
-num_iters : 100
+num_iters : 50
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 
 ############################### Other Common Options ###############################
 # NOTE: These are other commonly-used options you may find useful to change depending on your needs.
 
 color_name : 'r'
-color_term :  -0.0950107466670183
+color_term :  0.0 #-0.0950107466670183
 extinction : 0.053
-zpt : 27.93251516544001
+zpt : 27.83783164207953
 pixscale : 0.22400
 exposure_time : 300.281 # seconds
 gain : 1.75
@@ -61,7 +61,7 @@ masking_sbf:
   fixed_frac_of_radius : 0.8 # Ignored if randomly_vary_mask_radius is True
   min_random_frac_of_radius : 0.7 # Ignored if randomly_vary_mask_radius is False
   max_random_frac_of_radius : 1.0 # Ignored if randomly_vary_mask_radius is False
-  thresh : 7.0
+  thresh : 5.0
   kern_sig : 1.0
   backsize : 15
   obj_rmin : 5

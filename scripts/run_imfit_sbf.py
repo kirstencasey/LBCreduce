@@ -23,7 +23,7 @@ if __name__ == '__main__':
     }
 
     if args.run_imfit:
-        bestfit1, bestfit2, bestfit1_fn, bestfit2_fn, mag1, mag2, color, model1_fn, resid1_fn, model2_fn, resid2_fn, sbf_mag_true = lbcred.modeling_imfit(config_filename=args.imfit_config, options=options)
+        bestfit1, bestfit2, bestfit1_fn, bestfit2_fn, mag1, mag2, color, model1_fn, resid1_fn, functions, model2_fn, resid2_fn, sbf_mag_true, mag1_true, mag2_true = lbcred.modeling_imfit(config_filename=args.imfit_config, options=options)
 
     options.pop('run_imfit')
     options.pop('run_artpop')
@@ -33,4 +33,4 @@ if __name__ == '__main__':
     options['model_summary_fn'] = bestfit1_fn
 
     if args.run_sbf:
-        lbcred.modeling_sbf(config_filename=args.sbf_config, options=options)
+        sbf_mag, dist_a, dist_b = lbcred.modeling_sbf(config_filename=args.sbf_config, options=options, run_iter=iter, imfit_functions=functions)
