@@ -3,13 +3,13 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to model.
 
-image_dir : '/Users/kirstencasey/real_image_tests/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Where all the files needed for image reduction are located
-out_dir : '/Users/kirstencasey/real_image_tests/imfit_sbf' #/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory.
+image_dir : '/Users/kirstencasey/real_image_tests/background_subtraction_tests' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Where all the files needed for image reduction are located
+out_dir : '/Users/kirstencasey/real_image_tests/background_subtraction_tests/imfit_sbf' #/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory.
 run_imfit : True
-run_artpop : True # If True uses ArtPop Options to create and save ArtPop models (filename will be artpop_model_fn under Color Options), only injects them into image if inject_artpop_model is True
+run_artpop : False # If True uses ArtPop Options to create and save ArtPop models (filename will be artpop_model_fn under Color Options), only injects them into image if inject_artpop_model is True
 inject_artpop_model : True # If True and run_artpop is False, you must supply artpop_model_fn under the Color Options.
-use_pregen_artpops : False
-pregen_artpop_dir : '/Users/kirstencasey/artpop_models_6000000'
+use_pregen_artpops : True
+pregen_artpop_dir : '/Users/kirstencasey/artpop_models'
 random_inject_position : False
 exclude_positions_mask : 'random_inject_mask.fits'
 use_legacy_survey : False # If True get images/psfs from Legacy Survey for artpop/imfit modeling. See Legacy Survey options under ArtPop Options
@@ -20,11 +20,11 @@ smooth_images : False # Doesn't work.
 # NOTE: 'color1' should typically be the redder of the two if both colors are used. Ex. color1->'r' and color2->'b'.
 color1 :
   name : 'r'
-  image_fn : 'cutout_SEsky_r.fits' #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits' #'random_position_r.fits' #'mean_stack_cutout_r.fits'
+  image_fn : 'blobby_r.fits' #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits' #'random_position_r.fits' #'mean_stack_cutout_r.fits'
   mask_fn : # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
   psf : 'lbcr.median_psf_298.fits'
-  zpt : 27.83783164207953
-  extinction : 0.053
+  zpt : 28. #27.81400030008093
+  extinction : 0. #0.053
   color_term : 0. #-0.0950107466670183 #-0.2615782257257808
   artpop_model_fn : artpop_model_r.fits #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
   artpop_band : 'Bessell_R'
@@ -34,20 +34,20 @@ color1 :
   sky : 8781.15883120014 # For imfit if variance image is not given #888.818468786744
   sky_sb : 21.0103 #21.3103 # For artpop (should be in AB mag system); turn this on/off under ArtPop Options
   masking_imfit: # This is ignored if mask_fn is specified
-    thresh : 6.0
+    thresh : 6.5
     kern_sig : 1.0
     backsize : 15
-    obj_rmin : 2000
-    grow_obj : 10.0
-    seg_rmin : 50.0
+    obj_rmin : 10
+    grow_obj : 12.0
+    seg_rmin : 0.0
 
 color2 :
   name : 'b'
-  image_fn : 'cutout_SEsky_b.fits' #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits' #'random_position_b.fits' #'mean_stack_cutout_b.fits'
+  image_fn : 'blobby_b.fits' #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits' #'random_position_b.fits' #'mean_stack_cutout_b.fits'
   mask_fn : # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
   psf : 'lbcb.median_psf_298.fits'
-  zpt : 28.20251513536785
-  extinction : 0.091
+  zpt : 28. #28.20251729262623
+  extinction : 0. # 0.091
   color_term : 0. #0.13540282725495237 #-0.03140386488100926
   artpop_model_fn : artpop_model_b.fits #'mean_stack_cutout_sersic_tiltedplane_model_b_2_Sersic.fits'
   artpop_band : 'Bessell_B'
@@ -59,7 +59,7 @@ color2 :
     thresh : 6.5
     kern_sig : 1.0
     backsize : 15
-    obj_rmin : 2000
+    obj_rmin : 10
     grow_obj : 9.0
     seg_rmin : 2000.0
 
@@ -82,7 +82,7 @@ log_to_file :  # Filename of output file for logger. Logger not output to file i
 
 # Imfit modeling options
 readnoise : 12.0
-ncombined : 1
+ncombined : 10
 include_exposure_time : False # Should only be True if images are in ADU/sec/pixel, False if ADU/pixel
 variance_image : flat_variance_image.fits
 
@@ -94,8 +94,6 @@ imfit_steps:
     color : 'r' # Must correspond to color name under Color Options
     functions : 'Sersic' # Separate using comma
     fix_struc_step : 'step1'
-
-
 
 # Sersic parameters
 sersic_params :
@@ -145,9 +143,9 @@ flat_sky_params:
 #assumed_distance : 3.7 # Mpc
 mask_bright_star : False
 circle_mask:
-  radius : 300 #255
-  xpos : 277
-  ypos : 1048
+  radius : 375 #255
+  xpos : 240
+  ypos : 28
 
 
 ############################### ArtPop Options ###############################
@@ -155,7 +153,7 @@ xpos_inject : 525
 ypos_inject : 525
 mist_path : '/Users/kirstencasey/Documents/Resources/MIST'
 random_state : #100
-use_src_counts : False
+use_src_counts : True # Set this to True when you want the 'noiseless' version of the ArtPop model for imfit to run on.
 telescope_diameter : 8.25 # meters
 include_sky_sb : False # Specify the SB in the Color Options section
 include_readnoise : False # Do this if not injecting the ArtPop model into a real image that already has readnoise included

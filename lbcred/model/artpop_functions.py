@@ -112,6 +112,9 @@ def run_artimager(config, options={}):
     new_hdul2 = fits.HDUList([hdu0, hdu20, hdu21])
     new_hdul2.writeto(os.path.join(config['out_dir'], config['color2']['artpop_model_fn']), overwrite=True)
 
+    new_hdul1.close()
+    new_hdul2.close()
+
     if config['use_src_counts'] : return model1_src, model2_src, src
 
     else : return model1, model2, src

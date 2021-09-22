@@ -64,17 +64,7 @@ if __name__ == '__main__':
     options['inject_artpop_model'] = True
 
     # Get imfit r- and b-band components given imfit steps in config file
-    step_num = 1
-    for step in options['imfit_steps']:
-        if options['imfit_steps'][step]['color'] == 'b':
-            b_step = step_num
-        elif options['imfit_steps'][step]['color'] == 'r':
-            r_step = step_num
-        step_num+=1
-    b_comp = misc.list_of_strings(options['imfit_steps'][f'step{b_step}']['functions']).index('Sersic')+1
-    r_comp = misc.list_of_strings(options['imfit_steps'][f'step{r_step}']['functions']).index('Sersic')+1
-    b_comp = f'comp_{b_comp}'
-    r_comp = f'comp_{r_comp}'
+    r_comp, b_comp = imfit.determine_imfit_comps(options)
 
     # Open and read sbf config file
     with open(args.sbf_config, 'r') as filename:

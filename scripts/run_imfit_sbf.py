@@ -33,4 +33,4 @@ if __name__ == '__main__':
     options['model_summary_fn'] = bestfit1_fn
 
     if args.run_sbf:
-        sbf_mag, dist_a, dist_b = lbcred.modeling_sbf(config_filename=args.sbf_config, options=options, run_iter=iter, imfit_functions=functions)
+        sbf_mag, dist_a, dist_b = lbcred.modeling_sbf(config_filename=args.sbf_config, options=options, imfit_functions=functions)

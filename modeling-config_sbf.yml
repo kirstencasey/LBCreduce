@@ -3,8 +3,8 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to model.
 
-image_dir : '/Users/kirstencasey/real_image_tests/imfit_sbf' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing'  # Where all the files needed for image reduction are located
-out_dir :  '/Users/kirstencasey/real_image_tests/imfit_sbf' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+image_dir : '/Users/kirstencasey/real_image_tests/background_subtraction_tests' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing'  # Where all the files needed for image reduction are located
+out_dir :  '/Users/kirstencasey/real_image_tests/background_subtraction_tests' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
 model_fn : 'artpop_sersic_r.fits' #'random_position_mock_injected_sersic_tiltedplane_model_r_2_Sersic.fits' #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
 resid_fn : 'artpop_sersic_resid_r.fits' #'random_position_mock_injected_sersic_tiltedplane_resid_r.fits' #'mean_stack_cutout_sersic_tiltedplane_resid_r.fits' # If create_resid_from_model is True then this is the filename the created residual will be saved under
 create_resid_from_model : False
@@ -19,8 +19,8 @@ overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 
 color_name : 'r'
 color_term :  0.0 #-0.0950107466670183
-extinction : 0.053
-zpt : 27.83783164207953
+extinction : 0. #0.053
+zpt : 28. #27.83783164207953
 pixscale : 0.22400
 exposure_time : 300.281 # seconds
 gain : 1.75

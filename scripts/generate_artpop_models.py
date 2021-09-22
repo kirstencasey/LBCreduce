@@ -5,7 +5,7 @@ from lbcred.model import artpop_functions
 
 num_models_to_generate = 1 #00
 save_dir = '/Users/kirstencasey/'#artpop_models_9000000' #/background_subtraction_tests/single-exposure_input/artpop_models'
-in_dir = '/Users/kirstencasey/background_subtraction_tests'
+in_dir = '/Users/kirstencasey/'
 
 vary_age = 10. #(9.9,10.15)
 vary_feh = -1.2 #(-1.2,-1.0)

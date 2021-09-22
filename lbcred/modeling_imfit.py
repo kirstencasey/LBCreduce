@@ -81,14 +81,14 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
             config['color2']['image_fn'] = image_fns['g'].replace('_g.fits', '_mock_injected_g.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color2']['image_fn']), image2)
 
-        else:
-            image1 = misc.inject_model(os.path.join(config['out_dir'],config['color1']['image_fn']), os.path.join(inject_dir,config['color1']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
+        else:   # recently changed config['out_dir'] to config['image_dir'] in inject_model
+            image1 = misc.inject_model(os.path.join(config['image_dir'],config['color1']['image_fn']), os.path.join(inject_dir,config['color1']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
             config['color1']['original_fn'] = config['color1']['image_fn']
             config['color1']['image_fn'] = config['color1']['image_fn'].replace(f'_{color1}.fits', f'_mock_injected_{color1}.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color1']['image_fn']), image1)
 
 
-            image2 = misc.inject_model(os.path.join(config['out_dir'],config['color2']['image_fn']), os.path.join(inject_dir,config['color2']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
+            image2 = misc.inject_model(os.path.join(config['image_dir'],config['color2']['image_fn']), os.path.join(inject_dir,config['color2']['artpop_model_fn']), config['ypos_inject'],config['xpos_inject'], model_extname = extname)
             config['color2']['original_fn'] = config['color2']['image_fn']
             config['color2']['image_fn'] = config['color2']['image_fn'].replace(f'_{color2}.fits', f'_mock_injected_{color2}.fits')
             io.write_pixels(os.path.join(config['out_dir'],config['color2']['image_fn']), image2)
@@ -173,12 +173,13 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
             model_sum = ''
             for func in imfit_results[key]['functions']: model_sum += f'{func} '
             logger.info(f'Running Imfit : {model_sum}')
-            results, model_fn, resid_fn = imfit.run_imfit(im_fn, mask_fn, color_options, config, model_funcs=imfit_results[key]['functions'], options=options, fixedsersic=fixed_struc, viz=True, iter=iter, fn_stub=fn_stub)
+            results, model_fn, resid_fn, bf_fn = imfit.run_imfit(im_fn, mask_fn, color_options, config, model_funcs=imfit_results[key]['functions'], options=options, fixedsersic=fixed_struc, viz=True, iter=iter, fn_stub=fn_stub)
 
             # Update results dict
             imfit_results[key]['results'] = results
             imfit_results[key]['model_fn'] = model_fn
             imfit_results[key]['resid_fn'] = resid_fn
+            imfit_results[key]['bestfit_fn'] = bf_fn
             step_num += 1
 
         # Summarize major findings
@@ -186,6 +187,8 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
         comp2 = imfit_results[final_step2]['functions'].index('Sersic')+1
         results1 = imfit_results[final_step1]['results'].results[f'comp_{comp1}']
         results2 = imfit_results[final_step2]['results'].results[f'comp_{comp2}']
+        bf1_fn = imfit_results[final_step1]['bestfit_fn']
+        bf2_fn = imfit_results[final_step2]['bestfit_fn']
         mag1, mag2, color = imfit.summarize_results(config, results1, results2)
 
         ######### END
@@ -208,14 +211,14 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
             src_sbfmag1 = None
             src_color1 = None
             src_color2 = None
-
+        '''
         if iter is None:
             bf1_fn = os.path.join(config['out_dir'],imfit_results[final_step1]['model_fn'].split('_model')[0]+f'_bestfit-params_{color1}.txt')
             bf2_fn = os.path.join(config['out_dir'],imfit_results[final_step2]['model_fn'].split('_model')[0]+f'_bestfit-params_{color2}.txt')
         else:
             bf1_fn = os.path.join(config['out_dir'],imfit_results[final_step1]['model_fn'].split('_model')[0]+f'_bestfit-params_{fn_stub}_iter{iter}_{color1}.txt')
             bf2_fn = os.path.join(config['out_dir'],imfit_results[final_step2]['model_fn'].split('_model')[0]+f'_bestfit-params_{fn_stub}_iter{iter}_{color2}.txt')
-
+        '''
         bestfit1 = io.read_results(bf1_fn, imfit_results[final_step1]['functions'])
         bestfit2 = io.read_results(bf2_fn, imfit_results[final_step2]['functions'])
 

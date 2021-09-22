@@ -3,14 +3,14 @@
 
 ############################### Directory and File Selection Options ###############################
 image_dir : '/Users/kirstencasey/real_image_tests/input' # Where all the files needed for image registration are located (if register_images is False this will be the input directory for calibration)
-out_dir : '/Users/kirstencasey/real_image_tests' # Specify desired path of output directory for image registration (if register_images is True this will be the input directory for calibration).
+out_dir : '/Users/kirstencasey/real_image_tests/background_subtraction_tests' # Specify desired path of output directory for image registration (if register_images is True this will be the input directory for calibration).
 artpop_model_dir : #'/Users/kirstencasey/background_subtraction_tests/single-exposure_input/artpop_models'
 glob_select : 'M81blob.proc.fits' #_backsub_M81blob.proc_reg.fits
 reference_catalog : '/Users/kirstencasey/background_subtraction_tests/panstarrs-137.6-73.4.csv'
 reference_catalog_withBESSEL : '/Users/kirstencasey/background_subtraction_tests/panstarrs-137.6-73.4_withBESSEL.dat'
 index-path :
-final_stack_fn_r : mean_stack_median_background_r.fits #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits'
-final_stack_fn_b : mean_stack_median_background_b.fits #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits'
+final_stack_fn_r : mean_stack_polynomial_background_r.fits #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits'
+final_stack_fn_b : mean_stack_polynomial_background_b.fits #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits'
 stack_color_id_r : '_r' # 'lbcr', '_r'
 psf_fn_r : 'lbcr.median_psf_298.fits'
 psf_fn_b : 'lbcb.median_psf_298.fits'
@@ -37,7 +37,7 @@ chip_num : 2 # Can only handle one chip at a time right now...
 
 
 ############################### Background Subtraction Options ###############################
-background_model : 'median' # Options: 'SEsky', 'median', 'clipped_mean', 'plane', 'polynomial'
+background_model : 'polynomial' # Options: 'SEsky', 'median', 'clipped_mean', 'plane', 'polynomial'
 save_background_models : True
 generate_image_mask : True
 image_mask_thresh : 5 # This uses mad_std to determine masked pixels
@@ -120,8 +120,8 @@ extinction_b : 0.091
 add_remnants : False
 artpop_model_fn_r : 'artpop_model_r.fits'
 artpop_model_fn_b : 'artpop_model_b.fits'
-zpt_r : 28.02708203737313  #27.802908017943235
-zpt_b : 28.26591947732506 #28.1975307137608
+zpt_r : 28.0 #2708203737313  #27.802908017943235
+zpt_b : 28. #26591947732506 #28.1975307137608
 colorterm_r : 0. #-0.155768040688061
 colorterm_b : 0. #0.13296490058751856
 

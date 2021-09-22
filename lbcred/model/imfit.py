@@ -1,6 +1,6 @@
 import pymfit, subprocess, os
 import numpy as np
-from lbcred.utils import io
+from lbcred.utils import io, misc
 from astropy.io import fits
 
 
@@ -214,7 +214,7 @@ def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options
         else: fn = model_fn.replace('.fits',f'_iter{iter}.png')
         fitter.viz_results(show=False, save_fn=fn, dpi=200)
 
-    return fitter, model_fn, resid_fn
+    return fitter, model_fn, resid_fn, bestfit_fn #ADDED BESTFIT_FN TO LIST OF RETURNS!!
 
 
 def summarize_results(config, sersic_params1, sersic_params2=None):
@@ -253,6 +253,22 @@ def summarize_results(config, sersic_params1, sersic_params2=None):
         return mag1_corrected , mag2_corrected , color_corrected
 
     return sersic1.m_tot - config['color1']['extinction']
+
+def determine_imfit_comps(imfit_config):
+
+    step_num = 1
+    for step in imfit_config['imfit_steps']:
+        if imfit_config['imfit_steps'][step]['color'] == imfit_config['color1']['name']:
+            step1 = step_num
+        elif imfit_config['imfit_steps'][step]['color'] == imfit_config['color2']['name']:
+            step2 = step_num
+        step_num+=1
+    comp2 = misc.list_of_strings(imfit_config['imfit_steps'][f'step{step2}']['functions']).index('Sersic')+1
+    comp1 = misc.list_of_strings(imfit_config['imfit_steps'][f'step{step1}']['functions']).index('Sersic')+1
+    comp2 = f'comp_{comp2}'
+    comp1 = f'comp_{comp1}'
+
+    return comp1,comp2
 
 def smooth_image():
 

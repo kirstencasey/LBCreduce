@@ -1760,8 +1760,12 @@ def calibrate_images(config):
 
         with fits.open(os.path.join(config['out_dir'],ftype,zp_stack_r['filename'][0]), 'update') as hdu:
             hdu[config['ext']].header['STACK_ZPT'] = -zp_stack_r['zp'][0]
+            hdu[config['ext']].header['STACK_COLORTERM_R'] = color_term_stack_r
+            hdu[config['ext']].header['STACK_COLORTERM_B'] = color_term_stack_b
         with fits.open(os.path.join(config['out_dir'],ftype,zp_stack_b['filename'][0]), 'update') as hdu:
             hdu[config['ext']].header['STACK_ZPT'] = -zp_stack_b['zp'][0]
+            hdu[config['ext']].header['STACK_COLORTERM_R'] = color_term_stack_r
+            hdu[config['ext']].header['STACK_COLORTERM_B'] = color_term_stack_b
 
         logger.info('Calibration Results: \n')
         print('Stack zeropoints:')

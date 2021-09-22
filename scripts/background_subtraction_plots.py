@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from lbcred.utils import misc
 
-in_dir = '/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf_median/'
-save_dir = '/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf_median/'
+in_dir = '/Users/kirstencasey/real_image_tests/background_subtraction_tests/imfit_sbf'
+save_dir = '/Users/kirstencasey/real_image_tests/background_subtraction_tests/imfit_sbf'
 params = ['measured_mags_r','measured_mags_b','measured_sbfmags','measured_dists','measured_radii','measured_ellip','measured_n','measured_pa','measured_xpos','measured_ypos','measured_Ier',
             'measured_Ieb','true_mags_r','true_mags_b','true_sbfmags','true_dists','true_radii','true_ellip','true_n','true_pa','position_ids','artpop_ids','background_models']
 
-back_models = ['median'] #'SEsky','polynomial',
+back_models = ['polynomial'] #'SEsky','median',
 colors_back = ['indigo'] #['gold','indigo','firebrick']
 diff_param_vals_pos = [1] #[4,2,3,1]
 colors_pos = ['tomato'] #['navy','darkgreen','gold','tomato']
@@ -57,7 +57,7 @@ for measured, true, label, save in zip(measured_params,true_params,labels,save_n
 
     plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
     plt.xlabel(f'{label} error')
-    #plt.legend(prop={'size': 15})
+    plt.legend(prop={'size': 15})
     plt.savefig(os.path.join(save_dir,f'background_test_results_backgroundtype_{save}.png'))
     plt.clf()
 
@@ -80,7 +80,7 @@ for measured, true, label, save in zip(measured_params,true_params,labels,save_n
 
     plt.axvline(x=0, color='black', linestyle='dashed', linewidth=3)
     plt.xlabel(f'{label} error')
-    #plt.legend(prop={'size': 15})
+    plt.legend(prop={'size': 15})
     plt.savefig(os.path.join(save_dir,f'background_test_results_position_{save}.png'))
     plt.clf()
 
