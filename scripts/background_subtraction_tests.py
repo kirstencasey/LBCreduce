@@ -24,18 +24,18 @@ imfit_config = '/Users/kirstencasey/projects/LBCreduce/modeling-config_imfit.yml
 sbf_config = '/Users/kirstencasey/projects/LBCreduce/modeling-config_sbf.yml'
 register_config = '/Users/kirstencasey/projects/LBCreduce/register_calibration-config.yml'
 use_premade_masks =  True
-num_artpop_models_to_test = 2 # If 0 uses all models in directory; if this is 1 then just grabs the artpop model that's specified in the relevant config file
+num_artpop_models_to_test = 1 #0 # If 0 uses all models in directory; if this is 1 then just grabs the artpop model that's specified in the relevant config file
 construct_artpop = False
 select_premade_artpops = True
 inject_artpop_in_registration_step = False # If this is False and select_premade_artpops is True, injects models in imfit step
 
-back_models = ['polynomial']#,'SEsky','median']
+back_models = ['SEsky']#,'polynomial','median']
 register_calibrate_ims = True
 run_imfit = True
 run_sbf = True
 xpos = [1815,1477] #[818,1041,1427,1516]
 ypos = [3658,1586] #[1716,1189,1939,3364]
-mask_bright_star_pos = [False,True]#,False,False,False]
+mask_bright_star_pos = [False,False]#,False,False,False]
 cutout_size = (1051,1051)
 num_positions = len(xpos)
 
@@ -44,6 +44,7 @@ with open(register_config, 'r') as filename:
 
 with open(imfit_config, 'r') as filename:
     im_config = yaml.load(filename, Loader=yaml.FullLoader)
+    orig_image_dir = im_config['image_dir']
 
 if inject_artpop_in_registration_step:
     artpop_dir = reg_config['artpop_model_dir']
@@ -88,13 +89,109 @@ position_nums = []
 artpop_ids = []
 bckgnd_models = []
 
+def run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run, artpop_ids=None, inject_artpop_in_registration_step=False):
+    with open(register_config, 'r') as filename:
+        reg_config = yaml.load(filename, Loader=yaml.FullLoader)
 
+    if first_run and inject_artpop_in_registration_step:
+        reg_config['construct_artpop'] = construct_artpop
+    else: reg_config['construct_artpop'] = False
+
+    if not inject_artpop_in_registration_step:
+        reg_config['construct_artpop'] = False
+
+    if num_artpop_models_to_test > 1 and inject_artpop_in_registration_step:
+        reg_config['artpop_model_fn_r'] = artpop_ids[-1]+'_r.fits'
+        reg_config['artpop_model_fn_b'] = artpop_ids[-1]+'_b.fits'
+
+    # Change config based on desired background model
+    reg_config['background_model'] = back_model
+    reg_config['xpos_inject'] = xpos[iter]
+    reg_config['ypos_inject'] = ypos[iter]
+
+    print('Registering images')
+
+    back_id = f'{back_model}{iter+1}'
+    if num_artpop_models_to_test > 1 and inject_artpop_in_registration_step: back_id+=artpop_ids[-1]
+    print('HERE WE GOOOOOOOO!!!!!!!')
+    # Register r-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
+    reg_config, sky_pos, src = lbcred.register_images(tmp_path='/tmp', bandpass='R', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
+
+    # Register b-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
+    reg_config, sky_pos, _ = lbcred.register_images(tmp_path='/tmp', bandpass='B', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
+
+    reg_config['image_dir'] = reg_config['out_dir']
+    reg_config['glob_select'] = reg_config['glob_select'].replace('.fits','_reg.fits')
+
+    print('Calibrating images')
+    lbcred.calibrate_images(config=reg_config)
+
+    if reg_config['stack_images']:
+        out_fn_r = reg_config['final_stack_fn_r'].replace('_r.fits',f'_cutout{iter+1}_r.fits')
+        out_fn_b = reg_config['final_stack_fn_b'].replace('_b.fits',f'_cutout{iter+1}_b.fits')
+        in_fn_r = reg_config['final_stack_fn_r']
+        in_fn_b = reg_config['final_stack_fn_b']
+    else:
+        out_fn_r = im_config['color1']['image_fn'].replace('_r.fits',f'_cutout{iter+1}_r.fits')
+        out_fn_b = im_config['color2']['image_fn'].replace('_b.fits',f'_cutout{iter+1}_b.fits')
+        in_fn_r = im_config['color1']['image_fn']
+        in_fn_b = im_config['color2']['image_fn']
+
+    if num_artpop_models_to_test > 1 and inject_artpop_in_registration_step:
+        out_fn_b = out_fn_b.replace('b.fits',artpop_ids[-1]+'_b.fits')
+        out_fn_r = out_fn_r.replace('r.fits',artpop_ids[-1]+'_r.fits')
+
+    im_config['color1']['image_fn'] = out_fn_r
+    im_config['color2']['image_fn'] = out_fn_b
+
+    if inject_artpop_in_registration_step:
+        w = WCS(fits.open(os.path.join(reg_config['image_dir'],'sci',in_fn_b))[0].header)
+        x_cutout, y_cutout = w.world_to_pixel(sky_pos[0])
+    else: x_cutout, y_cutout = xpos[iter], ypos[iter]
+
+    cutout_b = make_cutout(os.path.join(reg_config['image_dir'],'sci',in_fn_b), (x_cutout,y_cutout), cutout_size, ext = 0, cutout_fn=os.path.join(reg_config['image_dir'],'sci',out_fn_b))
+    cutout_r = make_cutout(os.path.join(reg_config['image_dir'],'sci',in_fn_r), (x_cutout,y_cutout), cutout_size, ext = 0, cutout_fn=os.path.join(reg_config['image_dir'],'sci',out_fn_r))
+
+    # Put everything in the directory where imfit will be run if necessary
+    if run_imfit:
+        imfit_dir_exists = os.path.isdir(im_config['out_dir'])
+        if imfit_dir_exists and first_run:
+            warnings.warn('The imfit output directory already exists and will be overwritten.', AstropyUserWarning)
+            shutil.rmtree(im_config['out_dir'])
+            os.mkdir(im_config['out_dir'])
+        elif not imfit_dir_exists:
+            os.mkdir(im_config['out_dir'])
+        # Copy stuff into imfit dir
+        shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',out_fn_r),os.path.join(orig_image_dir,out_fn_r))
+        shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',out_fn_b),os.path.join(orig_image_dir,out_fn_b))
+        shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',reg_config['psf_fn_r']),os.path.join(im_config['out_dir'],im_config['color1']['psf']))
+        shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',reg_config['psf_fn_b']),os.path.join(im_config['out_dir'],im_config['color2']['psf']))
+        if first_run and im_config['variance_image'] is not None:
+            warnings.warn('Assuming a flat variance image.', AstropyUserWarning)
+            var_im = fits.PrimaryHDU(np.zeros(cutout_size)+1)
+            var_im.writeto(os.path.join(im_config['out_dir'],im_config['variance_image']),overwrite=True)
+        if use_premade_masks and first_run:
+            all_masks = glob.glob(os.path.join(im_config['image_dir'],'*mask*'))
+            for mask in all_masks:
+                shutil.copyfile(mask,os.path.join(im_config['out_dir'],mask.split('/')[-1]))
+
+    return reg_config, im_config, out_fn_r, out_fn_b
+
+
+#####################################################################################
+
+first_run = True
 for iter in range(num_positions):
 
     for back_model in back_models:
 
         logger.info(f'Working on background model: {back_model}')
         used_artpops = []
+
+        if not inject_artpop_in_registration_step:
+
+            reg_config, im_config, out_fn_r, out_fn_b  = run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run)
+            first_run = False
 
         for model_num in range(num_artpop_models_to_test):
             position_nums.append(iter+1)
@@ -111,98 +208,20 @@ for iter in range(num_positions):
             else:
                 artpop_ids.append(im_config['color1']['artpop_model_fn'].split('_r.fits')[0])
 
-            if register_calibrate_ims:
+            if register_calibrate_ims and inject_artpop_in_registration_step:
 
-                with open(register_config, 'r') as filename:
-                    reg_config = yaml.load(filename, Loader=yaml.FullLoader)
+                reg_config, im_config  = run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run, artpop_ids, inject_artpop_in_registration_step=inject_artpop_in_registration_step)
+                first_run = False
 
-                if iter==0 and inject_artpop_in_registration_step:
-                    reg_config['construct_artpop'] = construct_artpop
-                else: reg_config['construct_artpop'] = False
-
-                if not inject_artpop_in_registration_step:
-                    reg_config['construct_artpop'] = False
-                    im_config['color1']['artpop_model_fn'] = artpop_ids[-1]+'_r.fits'
-                    im_config['color2']['artpop_model_fn'] = artpop_ids[-1]+'_b.fits'
-
-                if num_artpop_models_to_test > 1 :
-                    reg_config['artpop_model_fn_r'] = artpop_ids[-1]+'_r.fits'
-                    reg_config['artpop_model_fn_b'] = artpop_ids[-1]+'_b.fits'
-
-                # Change config based on desired background model
-                reg_config['background_model'] = back_model
-                reg_config['xpos_inject'] = xpos[iter]
-                reg_config['ypos_inject'] = ypos[iter]
-
-                print('Registering images')
-
-                back_id = f'{back_model}{iter+1}_'
-                if num_artpop_models_to_test > 1 : back_id+=artpop_ids[-1]
-
-                # Register r-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
-                reg_config, sky_pos, src = lbcred.register_images(tmp_path='/tmp', bandpass='R', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
-
-                # Register b-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
-                reg_config, sky_pos, _ = lbcred.register_images(tmp_path='/tmp', bandpass='B', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
-
-                reg_config['image_dir'] = reg_config['out_dir']
-                if reg_config['subtract_background']: reg_config['glob_select'] = '_backsub_' + reg_config['glob_select'].replace('.fits','_reg.fits')
-                else: reg_config['glob_select'] = reg_config['glob_select'].replace('.fits','_reg.fits')
-
-                print('Calibrating images')
-                lbcred.calibrate_images(config=reg_config)
-
-                if reg_config['stack_images']:
-                    out_fn_r = reg_config['final_stack_fn_r'].replace('_r.fits',f'_cutout{iter+1}_r.fits')
-                    out_fn_b = reg_config['final_stack_fn_b'].replace('_b.fits',f'_cutout{iter+1}_b.fits')
-                    in_fn_r = reg_config['final_stack_fn_r']
-                    in_fn_b = reg_config['final_stack_fn_b']
-                else:
-                    out_fn_r = im_config['color1']['image_fn'].replace('_r.fits',f'_cutout{iter+1}_r.fits')
-                    out_fn_b = im_config['color2']['image_fn'].replace('_b.fits',f'_cutout{iter+1}_b.fits')
-                    in_fn_r = im_config['color1']['image_fn']
-                    in_fn_b = im_config['color2']['image_fn']
-
-                if num_artpop_models_to_test > 1 :
-                    out_fn_b = out_fn_b.replace('b.fits',artpop_ids[-1]+'_b.fits')
-                    out_fn_r = out_fn_r.replace('r.fits',artpop_ids[-1]+'_r.fits')
-
-                im_config['color1']['image_fn'] = out_fn_r
-                im_config['color2']['image_fn'] = out_fn_b
-
-
-                if inject_artpop_in_registration_step:
-                    w = WCS(fits.open(os.path.join(reg_config['image_dir'],'sci',in_fn_b))[0].header)
-                    x_cutout, y_cutout = w.world_to_pixel(sky_pos[0])
-                else: x_cutout, y_cutout = xpos[iter], ypos[iter]
-
-                cutout_b = make_cutout(os.path.join(reg_config['image_dir'],'sci',in_fn_b), (x_cutout,y_cutout), cutout_size, ext = 0, cutout_fn=os.path.join(reg_config['image_dir'],'sci',out_fn_b))
-                cutout_r = make_cutout(os.path.join(reg_config['image_dir'],'sci',in_fn_r), (x_cutout,y_cutout), cutout_size, ext = 0, cutout_fn=os.path.join(reg_config['image_dir'],'sci',out_fn_r))
-
-                # Put everything in the directory where imfit will be run if necessary
-                if run_imfit:
-                    imfit_dir_exists = os.path.isdir(im_config['out_dir'])
-                    if imfit_dir_exists and iter == 0 and model_num == 0:
-                        warnings.warn('The imfit output directory already exists and will be overwritten.', AstropyUserWarning)
-                        shutil.rmtree(im_config['out_dir'])
-                        os.mkdir(im_config['out_dir'])
-                    elif iter == 0 and model_num == 0:
-                        os.mkdir(im_config['out_dir'])
-                    # Copy stuff into imfit dir
-                    shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',out_fn_r),os.path.join(im_config['image_dir'],out_fn_r))
-                    shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',out_fn_b),os.path.join(im_config['image_dir'],out_fn_b))
-                    shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',reg_config['psf_fn_r']),os.path.join(im_config['out_dir'],im_config['color1']['psf']))
-                    shutil.copyfile(os.path.join(reg_config['image_dir'],'sci',reg_config['psf_fn_b']),os.path.join(im_config['out_dir'],im_config['color2']['psf']))
-                    if im_config['variance_image'] is not None and iter==0 and model_num == 0 :
-                        warnings.warn('Assuming a flat variance image.', AstropyUserWarning)
-                        var_im = fits.PrimaryHDU(np.zeros(cutout_size)+1)
-                        var_im.writeto(os.path.join(im_config['out_dir'],im_config['variance_image']),overwrite=True)
-                    if use_premade_masks and model_num == 0 and iter == 0:
-                        all_masks = glob.glob(os.path.join(im_config['image_dir'],'*mask*'))
-                        for mask in all_masks:
-                            shutil.copyfile(mask,os.path.join(im_config['out_dir'],mask.split('/')[-1]))
-
-                if src is not None: artpop_src = src
+            elif register_calibrate_ims:
+                im_config['color1']['artpop_model_fn'] = artpop_ids[-1]+'_r.fits'
+                im_config['color2']['artpop_model_fn'] = artpop_ids[-1]+'_b.fits'
+                im_config['inject_artpop_model'] = True
+                shutil.copyfile(os.path.join(orig_image_dir,out_fn_r),os.path.join(orig_image_dir,out_fn_r.replace('r.fits',artpop_ids[-1]+'_r.fits')))
+                shutil.copyfile(os.path.join(orig_image_dir,out_fn_b),os.path.join(orig_image_dir,out_fn_b.replace('b.fits',artpop_ids[-1]+'_b.fits')))
+                im_config['color1']['image_fn'] = out_fn_r.replace('r.fits',artpop_ids[-1]+'_r.fits')
+                im_config['color2']['image_fn'] = out_fn_b.replace('b.fits',artpop_ids[-1]+'_b.fits')
+                im_config['image_dir'] = orig_image_dir
 
             # Run imfit
             if run_imfit:
@@ -211,7 +230,7 @@ for iter in range(num_positions):
 
                 if select_premade_artpops :
                     artpop_hdr = fits.getheader(os.path.join(artpop_dir,artpop_ids[-1]+'_r.fits'),hdu_number=reg_config['ext'])
-                    im_config['sersic_params']['PA_guess'] = float(artpop_hdr['THETA'])
+                    im_config['sersic_params']['PA_guess'] = float(artpop_hdr['THETA']) + 90.0
                     im_config['sersic_params']['n_guess'] = float(artpop_hdr['N'])
                     im_config['sersic_params']['ell_guess'] = float(artpop_hdr['ELLIP'])
                     im_config['sersic_params']['r_e_guess'] = misc.parsecs_to_pixels(float(artpop_hdr['R_EFF']), float(artpop_hdr['DISTANCE']) * 1e6, im_config['pixscale'])
@@ -266,7 +285,7 @@ for iter in range(num_positions):
             true_radii.append(float(artpop_hdr['r_eff']))
             true_ellip.append(float(artpop_hdr['ellip']))
             true_n.append(float(artpop_hdr['n']))
-            true_pa.append(float(artpop_hdr['theta']))
+            true_pa.append(float(artpop_hdr['theta'])+90.)
             true_mags_r.append(float(artpop_hdr['Bessell_R_mag']))
             true_mags_b.append(float(artpop_hdr['Bessell_B_mag']))
             true_sbfmags.append(float(artpop_hdr['Bessell_R_sbfmag']))
@@ -276,6 +295,6 @@ params = ['measured_mags_r','measured_mags_b','measured_sbfmags','measured_dists
 
 for param, arr in zip(params, arrs):
     nparr = np.asarray(arr)
-    file = open(os.path.join(reg_config['image_dir'],'imfit_sbf',f'background_subtraction_test_results_{param}'), "wb")
+    file = open(os.path.join(im_config['out_dir'],f'background_subtraction_test_results_{param}'), "wb")
     np.save(file, nparr)
     file.close

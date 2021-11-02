@@ -186,7 +186,7 @@ flat_options :
   ####### COMBINE - FLAT #######
   # More info: https://ccdproc.readthedocs.io/en/latest/api/ccdproc.combine.html
   combine_options:
-    method : 'average'
+    method : 'average' # only median available?
     weights :
     scale : 'inverse_median' # Options: inverse_median
     sigma_clip : True

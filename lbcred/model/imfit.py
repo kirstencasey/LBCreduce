@@ -1,7 +1,10 @@
-import pymfit, subprocess, os
+import pymfit, subprocess, os, yaml, pandas
 import numpy as np
-from lbcred.utils import io, misc
+from lbcred.utils import io, misc, mkdir_if_needed
 from astropy.io import fits
+from astropy.table import Table
+from collections import OrderedDict
+
 
 
 def create_imfit_mask(config, color_specific_info):
@@ -65,7 +68,7 @@ def create_imfit_mask(config, color_specific_info):
 
     return mask, mask_fn
 
-def run_makeimage(bestfit_fn, in_dir='.' , psf_fn=None, ref_fn=None, output_root=None, out_fn=None, del_temp=False, options=''):
+def run_makeimage(bestfit_fn, psf_fn=None, ref_fn=None, output_root=None, out_fn=None, del_temp=False, options=''):
 
     cmd = f'makeimage {bestfit_fn} '
 
@@ -163,21 +166,39 @@ def organize_initial_params(config, model, fixedsersic=None, color=None):
             center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
             dcent=1000
 
+    elif model == 'Gaussian':
+        PA = [config['gauss_params']['PA_guess'],config['gauss_params']['PA_min'],config['gauss_params']['PA_max']]
+        ell = [config['gauss_params']['ell_guess'],config['gauss_params']['ell_min'],config['gauss_params']['ell_max']]
+        I_0 = [config['gauss_params']['I_0_guess'],config['gauss_params']['I_0_min'],config['gauss_params']['I_0_max']]
+        sigma = [config['gauss_params']['sigma_guess'],config['gauss_params']['sigma_min'],config['gauss_params']['sigma_max']]
+        center = [config['gauss_params']['xpos_guess'],config['gauss_params']['ypos_guess']]
+        init_params = OrderedDict([('PA', PA),('ell', ell),('I_0', I_0),('sigma', sigma)])
+        dcent = config['gauss_params']['pos_err']
 
     return init_params, center, dcent
 
-def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options='', fixedsersic=None, viz=False, iter=None, fn_stub=None):
+def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options='', fixedsersic=None, viz=False, iter=None, fn_stub=None, alt_out_dir=None, alt_image_dir=None, glob_select=None):
 
     psf_fn = os.path.join(config['image_dir'],color_specific_info['psf'])
     color = color_specific_info['name']
+    if alt_out_dir is None: out_dir = config['out_dir']
+    else: out_dir = alt_out_dir
+    if alt_image_dir is None: image_dir = config['image_dir']
+    else: image_dir = alt_image_dir
 
     # Get model/resid filenames
     model_sum = ''
     for func in model_funcs: model_sum+=f'{func}_'
-    model_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_{model_sum}model_{color}.fits'))
-    resid_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_{model_sum}resid_{color}.fits'))
-    if iter is None: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_{model_sum}bestfit-params_{color}.txt'))
-    else: bestfit_fn = os.path.join(config['out_dir'],img_fn.replace(f'_{color}.fits',f'_{model_sum}bestfit-params_{fn_stub}_iter{iter}_{color}.txt'))
+    if f'_{color}.fits' in img_fn:
+        model_fn = os.path.join(out_dir,img_fn.replace(f'_{color}.fits',f'_{model_sum}model_{color}.fits'))
+        resid_fn = os.path.join(out_dir,img_fn.replace(f'_{color}.fits',f'_{model_sum}resid_{color}.fits'))
+    else:
+        model_fn = os.path.join(out_dir,img_fn.replace(glob_select,f'{model_sum}model.fits'))
+        resid_fn = os.path.join(out_dir,img_fn.replace(glob_select,f'{model_sum}resid.fits'))
+    if iter is None:
+        if f'_{color}.fits' in img_fn: bestfit_fn = os.path.join(out_dir,img_fn.replace(f'_{color}.fits',f'_{model_sum}bestfit-params_{color}.txt'))
+        else: bestfit_fn = os.path.join(out_dir,img_fn.replace(glob_select,f'{model_sum}bestfit-params.txt'))
+    else: bestfit_fn = os.path.join(out_dir,img_fn.replace(f'_{color}.fits',f'_{model_sum}bestfit-params_{fn_stub}_iter{iter}_{color}.txt'))
     config_fn = f'config_{model_sum}{color}.txt'
 
     params = []
@@ -197,15 +218,15 @@ def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options
     print(fitter.model)
     if config['variance_image'] is not None:
         print(mask_fn,psf_fn,bestfit_fn)
-        fitter.run(os.path.join(config['image_dir'],img_fn), var_fn=os.path.join(config['image_dir'],config['variance_image']), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=config['out_dir'], config_fn=config_fn, save_model=True, save_residual=True, will_viz=True)
+        fitter.run(os.path.join(image_dir,img_fn), var_fn=os.path.join(image_dir,config['variance_image']), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=out_dir, config_fn=config_fn, save_model=True, save_residual=True, will_viz=True)
     else:
-        fitter.run(os.path.join(config['image_dir'],img_fn), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=config['out_dir'], config_fn=config_fn, save_model=True, save_residual=True, will_viz=True, options=options)
+        fitter.run(os.path.join(image_dir,img_fn), mask_fn=mask_fn, psf_fn=psf_fn, out_fn=bestfit_fn, outdir=out_dir, config_fn=config_fn, save_model=True, save_residual=True, will_viz=True, options=options)
 
-    io.rename_fits_file(os.path.join(config['image_dir'],img_fn.replace('.fits','_model.fits')), model_fn, delete_old=True, overwrite=config['overwrite'])
-    io.rename_fits_file(os.path.join(config['image_dir'],img_fn.replace('.fits','_res.fits')), resid_fn, delete_old=True, overwrite=config['overwrite'])
+    io.rename_fits_file(os.path.join(image_dir,img_fn.replace('.fits','_model.fits')), model_fn, delete_old=True, overwrite=config['overwrite'])
+    io.rename_fits_file(os.path.join(image_dir,img_fn.replace('.fits','_res.fits')), resid_fn, delete_old=True, overwrite=config['overwrite'])
 
-    if len(model_funcs) > 1:
-        run_makeimage(bestfit_fn, psf_fn=psf_fn, ref_fn=os.path.join(config['image_dir'],img_fn), output_root=model_fn.replace('.fits','_'))
+    if len(model_funcs) > 1 and 'Sersic' in model_funcs:
+        run_makeimage(bestfit_fn, psf_fn=psf_fn, ref_fn=os.path.join(image_dir,img_fn), output_root=model_fn.replace('.fits','_'))
         sersic_comp = model_funcs.index('Sersic')+1
         model_fn = model_fn.replace('.fits',f'_{sersic_comp}_Sersic.fits')
 
@@ -269,6 +290,141 @@ def determine_imfit_comps(imfit_config):
     comp1 = f'comp_{comp1}'
 
     return comp1,comp2
+
+def subtract_bright_star(filename, config, color, glob_select, use_cutout=False, cutout_size=(2001,2001)):
+
+    # Read in imfit_config and csv
+    with open(config['imfit_config'], 'r') as config_imfit:
+        imfit_config = yaml.load(config_imfit, Loader=yaml.FullLoader)
+
+    if config['custom_mask_csv_fn'] is not None:
+        custom_mask_details = Table.from_pandas(pandas.read_csv(config['custom_mask_csv_fn']))
+        custom_mask_details = custom_mask_details[np.where(custom_mask_details['filename'] == filename.split('/')[-1].replace(glob_select,config['glob_select']))]
+
+    # Deal with directories, files, etc. - assumes flat variance image for now
+    mkdir_if_needed(os.path.join(config['out_dir'],'star_subtracted'))
+    file = fits.open(filename)[0]
+    if use_cutout:
+        var = fits.PrimaryHDU(np.zeros((cutout_size))+1)
+    else:
+        var = fits.PrimaryHDU(np.zeros((file.data.shape))+1)
+    var.writeto(os.path.join(config['out_dir'],'star_subtracted',imfit_config['variance_image']),overwrite=True)
+
+    # Create mask
+    mask_fn = os.path.join(config['out_dir'],'star_subtracted', filename.replace(config['glob_select'],'mask_' + config['glob_select']))
+    mask_kws = dict(out_fn=mask_fn, gal_pos=(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]), **imfit_config['masking_imfit_star'])
+    mask = pymfit.make_mask(filename, **mask_kws)
+    mask[np.where(file.data==0.)]=1
+
+    # Create custom mask if necessary
+    if config['custom_mask_csv_fn'] is not None:
+        xpos = [] # xpos and ypos are in the FITS standard
+        ypos = []
+        radii = []
+        for col in custom_mask_details.colnames:
+            if col == 'filename' or 'star' in col: continue
+            elif 'x_' in col: xpos.append(custom_mask_details[col][0])
+            elif 'y_' in col: ypos.append(custom_mask_details[col][0])
+            elif 'radius_' in col: radii.append(custom_mask_details[col][0])
+            else: logger.warning('Unrecognized column name in ' + config['custom_mask_csv_fn'])
+
+        # Add custom masks
+        mask_orig = mask
+        ii, jj = np.mgrid[:mask.shape[0], :mask.shape[1]]
+        for idx in range(len(radii)):
+            circ_mask = ((ii - ypos[idx])**2 + (jj - xpos[idx])**2) - radii[idx]**2 < 0
+            mask = mask.astype(bool) | circ_mask
+            mask = mask.astype(float)
+
+        # Include star anti-mask
+        star_mask = ((ii - custom_mask_details['y_star'][0])**2 + (jj - custom_mask_details['x_star'][0])**2) - custom_mask_details['radius_star'][0]**2 < 0
+        mask[star_mask] = 0
+        # Include diffraction spike masks, misc. masks
+        #mask[0:file.data.shape[1],custom_mask_details['x_star'][0]-15:custom_mask_details['x_star'][0]+15]=1
+        mask[np.where(file.data>config['saturation_limit'])]=1
+
+        # Save mask
+        mask_hdu = fits.PrimaryHDU(mask)
+        mask_hdu.writeto(mask_fn, overwrite=True)
+
+    # Create cutouts for imfit
+    imfit_file = filename
+    if use_cutout:
+        imfit_file = misc.make_cutout(filename,(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]),cutout_size,cutout_fn=filename.replace(config['glob_select'],'cutout_'+config['glob_select']),force_shape=True)
+        mask_file = misc.make_cutout(mask_fn,(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]),cutout_size,cutout_fn=mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select']),force_shape=True)
+        # Modify mask if necessary
+        mask_file = fits.open(mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select']))
+        mask_file[0].data[np.where(imfit_file.data==0)] = 1
+        mask_file.writeto(mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select']), overwrite=True)
+        # Save cutout filenames
+        imfit_file = filename.replace(config['glob_select'],'cutout_'+config['glob_select'])
+        mask_fn = mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select'])
+
+
+    # Do imfit stuff for star cutouts
+    rdnoise = config['readnoise']
+    gain = config['gain']
+    options = f'--readnoise {rdnoise} --gain {gain}'
+    color_options = {'name' : color, 'psf' : config[f'psf_fn_{color}']}
+
+    for step in imfit_config['star_imfit']:
+        band = imfit_config['star_imfit'][step]['color']
+        funcs = misc.list_of_strings(imfit_config['star_imfit'][step]['functions'])
+        if band != color : continue
+        if 'Gaussian' in funcs:
+            if use_cutout:
+                imfit_config['gauss_params']['xpos_guess'] = int(cutout_size[0]/2)
+                imfit_config['gauss_params']['ypos_guess'] = int(cutout_size[1]/2)
+            else:
+                imfit_config['gauss_params']['xpos_guess'] = custom_mask_details['x_star'][0]
+                imfit_config['gauss_params']['ypos_guess'] = custom_mask_details['y_star'][0]
+        # Run imfit
+        results, model_fn, resid_fn, bf_fn = run_imfit(imfit_file, mask_fn, color_options, imfit_config, model_funcs=funcs, options=options, viz=True, alt_out_dir=os.path.join(config['out_dir'],'star_subtracted'), alt_image_dir=os.path.join(config['out_dir'],'star_subtracted'),glob_select=config['glob_select'])
+
+    # Reconstruct model for whole image
+    if use_cutout:
+        # Change positions in bestfit file
+        new_lines=[]
+        funcs = []
+        with open(os.path.join(config['out_dir'],'star_subtracted',bf_fn), 'r') as bf:
+
+            for line in bf.readlines():
+                if line[0] == 'X':
+                    # Get cutout position
+                    cutout_x = line.split('\t')[2].split(' ')[0]
+                    # Get new whole image position
+                    whole_im_x = custom_mask_details['x_star'][0] - (int(cutout_size[0]/2)-float(cutout_x))
+                    new_line = line.replace(line.split('\t')[2].split(' ')[0],str(whole_im_x))
+                    new_lines.append(new_line)
+
+                elif line[0] == 'Y':
+                    # Get cutout position
+                    cutout_y = line.split('\t')[2].split(' ')[0]
+                    # Get new whole image position
+                    whole_im_y = custom_mask_details['y_star'][0] - (int(cutout_size[1]/2)-float(cutout_y))
+                    new_line = line.replace(line.split('\t')[2].split(' ')[0],str(whole_im_y))
+                    new_lines.append(new_line)
+
+                elif line[0] == 'F':
+                    funcs.append(line.split(' ')[-1].split('\n')[0])
+                    if 'FlatSky' not in line: new_lines.append(line)
+                    else: new_lines = new_lines[0:-2]
+
+                elif 'sky' not in line: new_lines.append(line)
+
+        os.rename(os.path.join(config['out_dir'],'star_subtracted',bf_fn),os.path.join(config['out_dir'],'star_subtracted',bf_fn.replace('.txt','_cutoutpositions.txt')))
+
+        with open(os.path.join(config['out_dir'],'star_subtracted',bf_fn), 'w') as f:
+            f.writelines(new_lines)
+
+        # Run makeimage to recreate model for whole image
+        run_makeimage(os.path.join(config['out_dir'],'star_subtracted',bf_fn) , psf_fn=os.path.join(config['out_dir'],config[f'psf_fn_{color}']), ref_fn=filename, output_root=None, out_fn=filename.replace('.fits','_model.fits'))
+
+        # Subtract model from original image, save files
+        file.data = file.data - fits.getdata(filename.replace('.fits','_model.fits'))
+        file.writeto(filename,overwrite=True)
+
+    return results, model_fn, resid_fn, bf_fn
 
 def smooth_image():
 

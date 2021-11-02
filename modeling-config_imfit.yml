@@ -3,8 +3,8 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to model.
 
-image_dir : '/Users/kirstencasey/real_image_tests/background_subtraction_tests' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Where all the files needed for image reduction are located
-out_dir : '/Users/kirstencasey/real_image_tests/background_subtraction_tests/imfit_sbf' #/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory.
+image_dir : '/Users/kirstencasey/real_image_tests/star_subtraction_tests' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Where all the files needed for image reduction are located
+out_dir : '/Users/kirstencasey/real_image_tests/star_subtraction_tests/auto_starsub_test' #/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory.
 run_imfit : True
 run_artpop : False # If True uses ArtPop Options to create and save ArtPop models (filename will be artpop_model_fn under Color Options), only injects them into image if inject_artpop_model is True
 inject_artpop_model : True # If True and run_artpop is False, you must supply artpop_model_fn under the Color Options.
@@ -31,7 +31,7 @@ color1 :
   artpop_mag :  #14.76083716950836 #compact:14.070269674315767 #14.680690474621638 # 14.736207799615263
   artpop_sbfmag : #26.734176700344815
   efficiency : 1.0 #0.278
-  sky : 8781.15883120014 # For imfit if variance image is not given #888.818468786744
+  sky : 8599. # 8781.15883120014 # For imfit if variance image is not given #888.818468786744
   sky_sb : 21.0103 #21.3103 # For artpop (should be in AB mag system); turn this on/off under ArtPop Options
   masking_imfit: # This is ignored if mask_fn is specified
     thresh : 6.5
@@ -61,7 +61,7 @@ color2 :
     backsize : 15
     obj_rmin : 10
     grow_obj : 9.0
-    seg_rmin : 2000.0
+    seg_rmin : 0.0
 
 combine_imfit_masks : True
 
@@ -89,30 +89,38 @@ variance_image : flat_variance_image.fits
 imfit_steps:
   step1 :
     color : 'b' # Must correspond to color name under Color Options
-    functions : 'Sersic' # Separate using comma
+    functions : 'TiltedSkyPlane,Sersic' # Separate using comma
   step2 :
     color : 'r' # Must correspond to color name under Color Options
-    functions : 'Sersic' # Separate using comma
+    functions : 'TiltedSkyPlane,Sersic' # Separate using comma
     fix_struc_step : 'step1'
+
+star_imfit :
+  step1 :
+    color : 'r'
+    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
+  step2 :
+    color : 'b'
+    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
 
 # Sersic parameters
 sersic_params :
   xpos_guess : 525.0 #513.0
   ypos_guess : 525.0 #493.0
   pos_err : 40.
-  fix_PA : False # Applies to EVERY imfit step specified above
-  PA_guess : 0.
+  fix_PA : True # Applies to EVERY imfit step specified above
+  PA_guess : 90. # From +y axis (NOTE: ArtPop measures from the +x axis, so 0 in ArtPop is 90 here.)
   PA_min : -400.
   PA_max : 400.0
-  fix_n : False # Applies to EVERY imfit step specified above
+  fix_n : True # Applies to EVERY imfit step specified above
   n_guess : 1. #og: 0.52078
   n_min : 0.0
   n_max : 3.0 #1.5
-  fix_ell : False # Applies to EVERY imfit step specified above
+  fix_ell : True # Applies to EVERY imfit step specified above
   ell_guess : 0.
-  ell_min : -0.5
-  ell_max : 0.5
-  fix_r_e : False # Applies to EVERY imfit step specified above
+  ell_min : -0.7
+  ell_max : 0.7
+  fix_r_e : True # Applies to EVERY imfit step specified above
   r_e_guess : 250 #87.105 #222.491 # Pixels
   r_e_min : 50.0
   r_e_max : 750
@@ -138,6 +146,23 @@ flat_sky_params:
   I_sky_min : 0
   I_sky_max : 11000
 
+gauss_params :
+  xpos_guess : 1000
+  ypos_guess : 1000
+  pos_err : 40.
+  PA_guess : 20.
+  PA_min : 0.
+  PA_max : 360.
+  ell_guess : 0.05
+  ell_min : -1.
+  ell_max : 1.
+  I_0_guess : 10000.
+  I_0_min : 0.
+  I_0_max : 25000.
+  sigma_guess : 100
+  sigma_min : 0.1
+  sigma_max : 1000
+
 # Misc. imfit masking options
 #given_abs_mag_to_mask : -4
 #assumed_distance : 3.7 # Mpc
@@ -146,7 +171,14 @@ circle_mask:
   radius : 375 #255
   xpos : 240
   ypos : 28
-
+model_subtract_star : False # Specify imfit functions for modeling under star_imfit
+masking_imfit_star :
+  thresh : 4.
+  kern_sig : 1.0
+  backsize : 15
+  obj_rmin : 100
+  grow_obj : 4.0
+  seg_rmin : 0.0
 
 ############################### ArtPop Options ###############################
 xpos_inject : 525

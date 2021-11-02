@@ -19,7 +19,7 @@ from lbcred.astrometry import solve_field, check_astrometric_solution, TweakWCS
 from lbcred import improc, utils, logger, image, interactive, tools, reduce, detection
 from lbcred.utils import misc, coordinates, io
 from lbcred.model.background_subtraction import background_subtraction
-from lbcred.model import artpop_functions
+from lbcred.model import artpop_functions, imfit
 
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -492,7 +492,17 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         # if you passed a file name, load that
         ref_cat = Table.read(ref_cat)
 
-    if config['subtract_background']:
+    if config['model_subtract_star']:
+        back_out = os.path.join(out_path, 'star_subtracted')
+        utils.mkdir_if_needed(back_out)
+        all_files = glob.glob(os.path.join(data_path, f'lbc{bandpass.lower()}*{glob_select}'))
+        for fi in all_files:
+            fi_base = fi.split('/')[-1].replace(glob_select,f'starsub_{glob_select}')
+            copyfile(fi, os.path.join(back_out,fi_base))
+        data_path = back_out
+        glob_select = f'starsub_{glob_select}'
+
+    elif config['subtract_background']:
         back_out = os.path.join(out_path, 'back_subtracted')
         utils.mkdir_if_needed(back_out)
         all_files = glob.glob(os.path.join(data_path, f'lbc{bandpass.lower()}*{glob_select}'))
@@ -509,7 +519,6 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
     # long exposures for making science images
     files_sci = fetch_files(data_path, bandpass, [200, 500], name_must_contain=glob_select)
     num_sci = len(files_sci)
-
 
     # loop over file types (calibration and science)
     for ftype, files, num in zip(['cali', 'sci'], [files_cali, files_sci], [num_cali, num_sci]):
@@ -539,7 +548,21 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
             src = None
 
         # run solve-field on each image
+        files_updated = []
         for fn in tqdm(files):
+
+            fn_updated = fn
+            if config['model_subtract_star']:
+                logger.info('Subtracting star for ' + fn)
+                imfit.subtract_bright_star(fn, config, bandpass.lower(), glob_select,use_cutout=True)
+                if config['subtract_background']:
+                    back_out = os.path.join(out_path, 'back_subtracted')
+                    utils.mkdir_if_needed(back_out)
+                    fn_base = fn.split('/')[-1].replace(glob_select,f'backsub_{glob_select}')
+                    copyfile(fn, os.path.join(back_out,fn_base))
+                    data_path = back_out
+                    fn_updated = os.path.join(data_path,fn.split('/')[-1].replace(glob_select,f'backsub_{glob_select}'))
+                    config['glob_select'] = f'backsub_{glob_select}'
 
             if config['inject_artpop']:
                 logger.info('Injecting ArtPop model for ' + fn)
@@ -549,19 +572,19 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
                 io.write_pixels(fn, image, header=fits.open(fn)[config['ext']].header)
 
             if config['subtract_background']:
-                logger.info('Subtracting background for ' + fn)
-                background_subtraction(filename = fn, config = config, fn_id=back_fn_id)
+                logger.info('Subtracting background for ' + fn_updated)
+                background_subtraction(filename = fn_updated, config = config, fn_id=back_fn_id)
 
-            logger.info('Solving field for ' + fn)
-            solution = solve_field(fn, index_path=index_path,
+            logger.info('Solving field for ' + fn_updated)
+            solution = solve_field(fn_updated, index_path=index_path,
                                    tmp_path=tmp_path,
                                    target_radec=center,
                                    search_radius=0.5,
                                    identifier='OBJECT')
-            fn_base = fn.split('/')[-1].split('.proc.fits')[0]
+            fn_base = fn_updated.split('/')[-1].split('.proc.fits')[0]
             utils.mkdir_if_needed(os.path.join(frame_out,'catalogs'))
             cat_fn = os.path.join(frame_out,'catalogs',f'{fn_base}.cat')
-            cat = extract_bright_stars(fn,catalog_path=cat_fn)
+            cat = extract_bright_stars(fn_updated,catalog_path=cat_fn)
             check = check_astrometric_solution(ref_cat,
                                                header=solution.header,
                                                cat=cat, max_sep=1)
@@ -585,9 +608,11 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
                                                    make_plot=config['make_plots'],
                                                    xlim=[-0.3, 0.3],
                                                    ylim=[-0.3, 0.3])
-                fig_fn = os.path.basename(fn).replace('.fits',
+                fig_fn = os.path.basename(fn_updated).replace('.fits',
                                                       '_check_wcs.png')
                 check.fig.savefig(os.path.join(fig_dir, fig_fn), dpi=250)
+
+            files_updated.append(fn_updated)
 
 
         logger.end_tqdm()
@@ -595,7 +620,7 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         # resample images
         logger.info(f'Registering and writing {ftype} frames')
         reg_files = []
-        for fn, sol in zip(files, astrom):
+        for fn, sol in zip(files_updated, astrom):
             resamp = improc.resample_image(
                 fn, center[0], center[1], config['pixscale'], config['output_dimensions']['x'],
                 config['output_dimensions']['y'], sol.fitsio_header)

@@ -286,27 +286,43 @@ def inject_model(image, model, xpos, ypos, model_extname = None):
 
     return mock_image
 
-def save_image_odd_shape(img_fn,ext):
+def save_image_odd_shape(img_fn,ext=0):
 
     img = fits.open(img_fn)
-    shape = min(img[ext].data.shape)
+    x = img[ext].data.shape[0]
+    y = img[ext].data.shape[1]
 
-    if shape%2 == 0:
-        shape -= 1
-        cutout = Cutout2D(img[ext].data, (shape/2,shape/2), shape)
-        img[ext].data = cutout.data
-        img.writeto(img_fn, overwrite=True)
+    if x%2 == 0:
+        x -= 1
+    if y%2 == 0:
+        y -= 1
+    cutout = Cutout2D(img[ext].data, (y/2,x/2), (x,y))
+    img[ext].data = cutout.data
+    img.writeto(img_fn, overwrite=True)
 
-    return shape
+    return (x,y)
 
 
-def make_cutout(original_img_fn, position, shape, ext, cutout_fn=None):
+def make_cutout(original_img_fn, position, shape, ext=0, cutout_fn=None, force_shape=False, force_shape_filler=0.):
     img = fits.open(original_img_fn)
     cutout = Cutout2D(img[ext].data, position, shape)
+
+    # Check cutout shape
+    # vstack if necessary
+    if force_shape:
+        if cutout.data.shape[0] != shape[0]:
+            zeros = np.zeros((shape[0]-cutout.data.shape[0],cutout.data.shape[1]))+force_shape_filler
+            cutout.data = np.vstack((cutout.data,zeros))
+
+        # hstack if necessary
+        if cutout.data.shape[1] != shape[1]:
+            zeros = np.zeros((cutout.data.shape[0],shape[1]-cutout.data.shape[1]))+force_shape_filler
+            cutout.data = np.hstack((zeros,cutout.data))
+
     img[ext].data = cutout.data
     if cutout_fn is not None:
         img.writeto(cutout_fn, overwrite=True)
-
+    img.close()
     return cutout
 
 
