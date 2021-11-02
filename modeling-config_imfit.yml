@@ -158,7 +158,7 @@ gauss_params :
   ell_max : 1.
   I_0_guess : 10000.
   I_0_min : 0.
-  I_0_max : 25000.
+  I_0_max : 50000.
   sigma_guess : 100
   sigma_min : 0.1
   sigma_max : 1000

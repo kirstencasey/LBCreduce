@@ -554,7 +554,7 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
             fn_updated = fn
             if config['model_subtract_star']:
                 logger.info('Subtracting star for ' + fn)
-                imfit.subtract_bright_star(fn, config, bandpass.lower(), glob_select,use_cutout=True)
+                imfit.subtract_bright_star(fn, config, bandpass.lower(), glob_select, use_cutout=True)
                 if config['subtract_background']:
                     back_out = os.path.join(out_path, 'back_subtracted')
                     utils.mkdir_if_needed(back_out)
@@ -562,7 +562,6 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
                     copyfile(fn, os.path.join(back_out,fn_base))
                     data_path = back_out
                     fn_updated = os.path.join(data_path,fn.split('/')[-1].replace(glob_select,f'backsub_{glob_select}'))
-                    config['glob_select'] = f'backsub_{glob_select}'
 
             if config['inject_artpop']:
                 logger.info('Injecting ArtPop model for ' + fn)
@@ -614,7 +613,6 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
 
             files_updated.append(fn_updated)
 
-
         logger.end_tqdm()
 
         # resample images
@@ -658,7 +656,9 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         hdu_exp = fits.PrimaryHDU(exposure_map)
         hdu_exp.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_exposuremap.fits'),overwrite=True)
 
-        return config, sky_pos, src
+    if config['subtract_background'] and config['model_subtract_star'] : config['glob_select'] = f'backsub_{glob_select}'
+
+    return config, sky_pos, src
 
 
 def calibrate_images(config):
