@@ -25,7 +25,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.stats import chisquare
-import astromatic_wrapper as aw
+#import astromatic_wrapper as aw
 from matplotlib.lines import Line2D
 from photutils import CircularAperture
 from photutils import aperture_photometry
@@ -496,6 +496,15 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         back_out = os.path.join(out_path, 'star_subtracted')
         utils.mkdir_if_needed(back_out)
         all_files = glob.glob(os.path.join(data_path, f'lbc{bandpass.lower()}*{glob_select}'))
+
+        print('~~~~~~LOOOOOOOOOOOOOOOK HHHHEREEEEEEEEEEEE!!!!!!!!!!!!!!!!!!!!!!!')
+        print('all_files: \n',all_files)
+        print('data_path: \n', data_path)
+        print('glob_select: \n', glob_select)
+        print(f'bandpass: \nlbc{bandpass.lower()}')
+        print('back_out: \n',back_out)
+        print('CONFIG::::::: \n',config)
+
         for fi in all_files:
             fi_base = fi.split('/')[-1].replace(glob_select,f'starsub_{glob_select}')
             copyfile(fi, os.path.join(back_out,fi_base))

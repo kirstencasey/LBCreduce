@@ -24,7 +24,7 @@ imfit_config = '/Users/kirstencasey/projects/LBCreduce/modeling-config_imfit.yml
 sbf_config = '/Users/kirstencasey/projects/LBCreduce/modeling-config_sbf.yml'
 register_config = '/Users/kirstencasey/projects/LBCreduce/register_calibration-config.yml'
 use_premade_masks =  True
-num_artpop_models_to_test = 1 #0 # If 0 uses all models in directory; if this is 1 then just grabs the artpop model that's specified in the relevant config file
+num_artpop_models_to_test = 2 #0 # If 0 uses all models in directory; if this is 1 then just grabs the artpop model that's specified in the relevant config file
 construct_artpop = False
 select_premade_artpops = True
 inject_artpop_in_registration_step = False # If this is False and select_premade_artpops is True, injects models in imfit step
@@ -109,13 +109,13 @@ def run_registration_calibration_steps(reg_config, im_config, iter, back_model, 
     reg_config['xpos_inject'] = xpos[iter]
     reg_config['ypos_inject'] = ypos[iter]
 
-    print('Registering images')
+    print('\nRegistering images')
 
     back_id = f'{back_model}{iter+1}'
     if num_artpop_models_to_test > 1 and inject_artpop_in_registration_step: back_id+=artpop_ids[-1]
-    print('HERE WE GOOOOOOOO!!!!!!!')
+
     # Register r-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
-    reg_config, sky_pos, src = lbcred.register_images(tmp_path='/tmp', bandpass='R', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
+    _, _, src = lbcred.register_images(tmp_path='/tmp', bandpass='R', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
 
     # Register b-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
     reg_config, sky_pos, _ = lbcred.register_images(tmp_path='/tmp', bandpass='B', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
@@ -123,7 +123,7 @@ def run_registration_calibration_steps(reg_config, im_config, iter, back_model, 
     reg_config['image_dir'] = reg_config['out_dir']
     reg_config['glob_select'] = reg_config['glob_select'].replace('.fits','_reg.fits')
 
-    print('Calibrating images')
+    print('\nCalibrating images')
     lbcred.calibrate_images(config=reg_config)
 
     if reg_config['stack_images']:
