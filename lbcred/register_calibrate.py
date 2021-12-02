@@ -844,8 +844,8 @@ def calibrate_images(config):
             lbt = EarthLocation.of_site('Large Binocular Telescope')
             glob_select = config['glob_select']
             chip = config['chip_num']
-            file_b = os.path.join(config['image_dir'],ftype,obj_in_panstarrs_b[0]['filename'].split('-chip')[0]+f'-chip{chip}{glob_select}')
-            file_r = os.path.join(config['image_dir'],ftype,obj_in_panstarrs_r[0]['filename'].split('-chip')[0]+f'-chip{chip}{glob_select}')
+            file_b = os.path.join(config['image_dir'],ftype,obj_in_panstarrs_b[0]['filename'].split('-chip')[0]+f'-chip{chip}_{glob_select}')
+            file_r = os.path.join(config['image_dir'],ftype,obj_in_panstarrs_r[0]['filename'].split('-chip')[0]+f'-chip{chip}_{glob_select}')
             hdul_b = fits.open(file_b,ignore_blank=True)
             hdul_r = fits.open(file_r,ignore_blank=True)
             utc_time_r = hdul_r[0].header['DATE_OBS']

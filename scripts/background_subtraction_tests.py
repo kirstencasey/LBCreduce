@@ -115,9 +115,11 @@ def run_registration_calibration_steps(reg_config, im_config, iter, back_model, 
     if num_artpop_models_to_test > 1 and inject_artpop_in_registration_step: back_id+=artpop_ids[-1]
 
     # Register r-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
+    orig_glob_select = reg_config['glob_select']
     _, _, src = lbcred.register_images(tmp_path='/tmp', bandpass='R', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
 
     # Register b-band images (sky_pos=[] unless inject_artpop_in_registration_step = True)
+    reg_config['glob_select'] = orig_glob_select
     reg_config, sky_pos, _ = lbcred.register_images(tmp_path='/tmp', bandpass='B', make_plots=True, config_fn=reg_config, back_fn_id=back_id)
 
     reg_config['image_dir'] = reg_config['out_dir']
