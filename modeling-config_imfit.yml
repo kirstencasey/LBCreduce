@@ -3,13 +3,13 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to model.
 
-image_dir : '/Users/kirstencasey/real_image_tests/star_subtraction_tests' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Where all the files needed for image reduction are located
-out_dir : '/Users/kirstencasey/real_image_tests/star_subtraction_tests/auto_starsub_test' #/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf '/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory.
+image_dir : '/fs/scratch/PCON0003/osu10713/scraps'  # Where all the files needed for image reduction are located
+out_dir : '/fs/scratch/PCON0003/osu10713/scraps'  # Specify desired path of output directory.
 run_imfit : True
 run_artpop : False # If True uses ArtPop Options to create and save ArtPop models (filename will be artpop_model_fn under Color Options), only injects them into image if inject_artpop_model is True
-inject_artpop_model : True # If True and run_artpop is False, you must supply artpop_model_fn under the Color Options.
-use_pregen_artpops : True
-pregen_artpop_dir : '/Users/kirstencasey/artpop_models'
+inject_artpop_model : False # If True and run_artpop is False, you must supply artpop_model_fn under the Color Options.
+use_pregen_artpops : False
+pregen_artpop_dir : '/users/PCON0003/osu10713/ArtPop_tests/ArtPop_models'
 random_inject_position : False
 exclude_positions_mask : 'random_inject_mask.fits'
 use_legacy_survey : False # If True get images/psfs from Legacy Survey for artpop/imfit modeling. See Legacy Survey options under ArtPop Options
@@ -20,13 +20,13 @@ smooth_images : False # Doesn't work.
 # NOTE: 'color1' should typically be the redder of the two if both colors are used. Ex. color1->'r' and color2->'b'.
 color1 :
   name : 'r'
-  image_fn : 'blobby_r.fits' #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits' #'random_position_r.fits' #'mean_stack_cutout_r.fits'
-  mask_fn : # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
-  psf : 'lbcr.median_psf_298.fits'
-  zpt : 28. #27.81400030008093
-  extinction : 0. #0.053
-  color_term : 0. #-0.0950107466670183 #-0.2615782257257808
-  artpop_model_fn : artpop_model_r.fits #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
+  image_fn : 'blobby_r.fits' #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits' #'random_position_r.fits'
+  mask_fn : #'cutout2_mask_r.fits' # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
+  psf : 'lbcr.median_psf_4.fits'
+  zpt : 27.86959732677312 
+  extinction :  0.053
+  color_term : -0.1371381779964556 #-0.0950107466670183 #-0.2615782257257808
+  artpop_model_fn : 'artpop_model_r.fits' #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
   artpop_band : 'Bessell_R'
   artpop_mag :  #14.76083716950836 #compact:14.070269674315767 #14.680690474621638 # 14.736207799615263
   artpop_sbfmag : #26.734176700344815
@@ -43,13 +43,13 @@ color1 :
 
 color2 :
   name : 'b'
-  image_fn : 'blobby_b.fits' #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits' #'random_position_b.fits' #'mean_stack_cutout_b.fits'
-  mask_fn : # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
-  psf : 'lbcb.median_psf_298.fits'
-  zpt : 28. #28.20251729262623
-  extinction : 0. # 0.091
-  color_term : 0. #0.13540282725495237 #-0.03140386488100926
-  artpop_model_fn : artpop_model_b.fits #'mean_stack_cutout_sersic_tiltedplane_model_b_2_Sersic.fits'
+  image_fn : 'blobby_b.fits' #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits' #'random_position_b.fits' 
+  mask_fn : #'cutout2_mask_b.fits' # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
+  psf : 'lbcb.median_psf_4.fits'
+  zpt : 28.19951502190683 
+  extinction : 0.091
+  color_term : 0.1292325245427773 #0.13540282725495237 #-0.03140386488100926
+  artpop_model_fn : 'artpop_model_b.fits' #'mean_stack_cutout_sersic_tiltedplane_model_b_2_Sersic.fits'
   artpop_band : 'Bessell_B'
   artpop_mag : #16.019337153610394 #compact:15.306299503261188  #15.901909169267238 #15.994602963128841
   efficiency : 1.0 #0.256
@@ -73,7 +73,7 @@ pixscale : 0.22400 # arcseconds/pixel
 exposure_time : 300.281 # 30.262 # seconds
 gain : 1.75
 ext : 0
-logger_level : 'INFO' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
+logger_level : 'DEBUG' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
 log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
 
 
@@ -84,54 +84,54 @@ log_to_file :  # Filename of output file for logger. Logger not output to file i
 readnoise : 12.0
 ncombined : 10
 include_exposure_time : False # Should only be True if images are in ADU/sec/pixel, False if ADU/pixel
-variance_image : flat_variance_image.fits
+variance_image : 'flat_variance_image.fits'
 
 imfit_steps:
   step1 :
-    color : 'b' # Must correspond to color name under Color Options
-    functions : 'TiltedSkyPlane,Sersic' # Separate using comma
-  step2 :
     color : 'r' # Must correspond to color name under Color Options
     functions : 'TiltedSkyPlane,Sersic' # Separate using comma
-    fix_struc_step : 'step1'
+  step2 :
+    color : 'b' # Must correspond to color name under Color Options
+    functions : 'TiltedSkyPlane,Sersic' # Separate using comma
+    fix_struc_step : 'step1' # Specify which step to fix structure to (e.g. 'step1')
 
 star_imfit :
   step1 :
     color : 'r'
-    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
+    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
   step2 :
     color : 'b'
-    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
-
+    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
+    
 # Sersic parameters
 sersic_params :
   xpos_guess : 525.0 #513.0
   ypos_guess : 525.0 #493.0
-  pos_err : 40.
-  fix_PA : True # Applies to EVERY imfit step specified above
+  pos_err : 50.
+  fix_PA : False # Applies to EVERY imfit step specified above
   PA_guess : 90. # From +y axis (NOTE: ArtPop measures from the +x axis, so 0 in ArtPop is 90 here.)
   PA_min : -400.
   PA_max : 400.0
-  fix_n : True # Applies to EVERY imfit step specified above
-  n_guess : 1. #og: 0.52078
+  fix_n : False # Applies to EVERY imfit step specified above
+  n_guess : 0.5 #og: 0.52078
   n_min : 0.0
   n_max : 3.0 #1.5
-  fix_ell : True # Applies to EVERY imfit step specified above
+  fix_ell : False # Applies to EVERY imfit step specified above
   ell_guess : 0.
   ell_min : -0.7
   ell_max : 0.7
-  fix_r_e : True # Applies to EVERY imfit step specified above
-  r_e_guess : 250 #87.105 #222.491 # Pixels
-  r_e_min : 50.0
+  fix_r_e : False # Applies to EVERY imfit step specified above
+  r_e_guess : 250 #250 #87.105 #222.491 # Pixels
+  r_e_min : 20.0
   r_e_max : 750
   fix_I_e : False # Applies to EVERY imfit step specified above - these values are hard coded for now in imfit.py
   I_e_guess : 100 #20
-  I_e_min : 10.0
+  I_e_min : 5.0
   I_e_max : 1000
 
 # Tilted plane parameters
 tilted_plane_params :
-  I_0_guess : 5
+  I_0_guess : 0
   I_0_min : -10
   I_0_max : 10
   m_x_guess : -0.005
@@ -142,9 +142,9 @@ tilted_plane_params :
   m_y_max : 5.
 
 flat_sky_params:
-  I_sky_guess : 5000
-  I_sky_min : 0
-  I_sky_max : 11000
+  I_sky_guess : 0 #5000
+  I_sky_min : -10 #-100 # 0
+  I_sky_max : 10 #100  #11000
 
 gauss_params :
   xpos_guess : 1000
@@ -158,10 +158,10 @@ gauss_params :
   ell_max : 1.
   I_0_guess : 10000.
   I_0_min : 0.
-  I_0_max : 50000.
-  sigma_guess : 100
+  I_0_max : 75000.
+  sigma_guess : 150
   sigma_min : 0.1
-  sigma_max : 1000
+  sigma_max : 1500
 
 # Misc. imfit masking options
 #given_abs_mag_to_mask : -4
@@ -183,26 +183,26 @@ masking_imfit_star :
 ############################### ArtPop Options ###############################
 xpos_inject : 525
 ypos_inject : 525
-mist_path : '/Users/kirstencasey/Documents/Resources/MIST'
+mist_path : '/users/PCON0003/osu10713/ArtPop_tests/MIST'
 random_state : #100
-use_src_counts : True # Set this to True when you want the 'noiseless' version of the ArtPop model for imfit to run on.
+use_src_counts : True # Set this to True when you want the 'noiseless' version of the ArtPop model for imfit to run on (i.e. if injecting into a real image).
 telescope_diameter : 8.25 # meters
 include_sky_sb : False # Specify the SB in the Color Options section
-include_readnoise : False # Do this if not injecting the ArtPop model into a real image that already has readnoise included
+include_readnoise : False # Set to False if injecting the ArtPop model into a real image that already has readnoise included
 add_remnants : False
 
 
 artpop_model_params :
-  log_age  : 10.1             # log of age in years
-  feh : -1.05                  # metallicity [Fe/H]
-  r_eff : 841                # effective radius, parsecs
-  n : 0.565536                   # Sersic index
-  theta : 9.53788                # position angle, degrees
-  ellip : -0.0926788               # ellipticity
-  total_mass : 14900000.0    # stellar mass (NOTE: cannot be written in scientific notation, must include all digits)
+  log_age  : 10.             # log of age in years
+  feh : -1.2                  # metallicity [Fe/H]
+  r_eff : 499.01 #841          # effective radius, parsecs
+  n : 0.662                    # Sersic index
+  theta : 8.22                  # position angle, degrees
+  ellip : 0.103 #-0.0926788     # ellipticity
+  total_mass : 9000000.0      # stellar mass (NOTE: cannot be written in scientific notation, must include all digits)
   imf : 'kroupa'              # initial mass function
   phot_system : 'UBVRIplus'   # photometric system
-  distance : 3.7              # distance to system, Mpc
+  distance : 3.2 #3.7         # distance to system, Mpc
   xy_dim : 1051               # image dimension
 
 

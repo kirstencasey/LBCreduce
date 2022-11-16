@@ -1,14 +1,15 @@
 import numpy as np
-import os, yaml
+import os, yaml, pandas
 from shutil import copyfile
 from lbcred.log import logger
 from lbcred import tools, sbf_functions
 from lbcred.utils import misc, io
 from lbcred.model import imfit
 from astropy.io import fits
+from astropy.table import Table
 
 
-def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=None, run_id=None):
+def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=None, run_id=None, plot_blank_fields=False):
 
     logger.info('Getting ready...')
     if type(config_filename) is not dict:
@@ -74,9 +75,13 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     config['resid_fn'] = resid_cutout_fn
     sersic_results['X0'] = cutout.center_cutout[0]
     sersic_results['Y0'] = cutout.center_cutout[1]
+    
+    # Get blank field info if necessary
+    if config['include_blank_field_correction']:
+         blank_field_positions = Table.from_pandas(pandas.read_csv(config['pre_selected_fields']))
 
     # run sbf measurement
-    color = config['color_name']
+    color = config['color_name'].upper()
     chi_squares = []
     sbf_mags = []
     dists_a = []
@@ -84,6 +89,11 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     k_mins = []
     k_maxs = []
     all_results = []
+    blank_results = None
+    used_blank_nums = []
+    blank_inputs = {}
+    signals = []
+    
     if config['masking_sbf']['randomly_vary_grow_obj']: grow_objs =[]
     if config['masking_sbf']['randomly_vary_mask_radius']: scales = []
     iter=0
@@ -99,36 +109,73 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
             grow_obj = np.random.uniform(config['masking_sbf']['grow_obj']-config['masking_sbf']['random_growth_max_deviation'],config['masking_sbf']['grow_obj']+config['masking_sbf']['random_growth_max_deviation'])
             grow_objs.append(grow_obj)
         else: grow_obj=config['masking_sbf']['grow_obj']
-
+        
+        # Get normalized residual and mask for sbf measurement
         sbf_resid, sbf_mask = sbf_functions.get_sbf_mask_resid(os.path.join(config['image_dir'],config['model_fn']), os.path.join(config['image_dir'],config['resid_fn']), sersic_results, grow_obj, scale, config)
 
-        k_min = np.random.uniform(config['k_min']-config['random_k_limit_deviation'],config['k_min']+config['random_k_limit_deviation'])
-        k_max = np.random.uniform(config['k_max']-config['random_k_limit_deviation'],config['k_max']+config['random_k_limit_deviation'])
-        while k_min <= 0.05 or k_max-k_min <= config['min_random_diff_between_kmin_kmax']: k_min = np.random.uniform(config['k_min']-config['random_k_limit_deviation'],config['k_min']+config['random_k_limit_deviation'])
-        while k_max >= 0.5 or k_max-k_min <= config['min_random_diff_between_kmin_kmax']: k_max = np.random.uniform(config['k_max']-config['random_k_limit_deviation'],config['k_max']+config['random_k_limit_deviation'])
+        # Get normalized residual and mask for sbf measurement on blank field
+        if config['include_blank_field_correction']:
+            # Select random blank field from csv, prep cutouts
+            blank_num = np.random.randint(0,len(blank_field_positions))
+            pos = blank_field_positions[blank_num]
+            misc.make_cutout(config['stack_fn'], (pos['xpos'],pos['ypos']), (cutout_size,cutout_size), ext=config['ext'], cutout_fn=os.path.join(config['image_dir'],f'blank_field_{blank_num}_r.fits'))
+            
+            # Get resid, mask
+            blank_resid, blank_mask = sbf_functions.get_sbf_mask_resid(os.path.join(config['image_dir'],config['model_fn']), os.path.join(config['image_dir'],f'blank_field_{blank_num}_r.fits'), sersic_results, grow_obj, scale, config, blank_field=True)
+            if blank_num not in used_blank_nums: 
+                blank_inputs[blank_num] = {'resid' : blank_resid,
+                                           'mask' : blank_mask}
+
+        if config['randomly_vary_k_limits']:
+            kmins = misc.list_of_floats(config['k_min'])
+            kmaxs = misc.list_of_floats(config['k_max'])
+            k_min = np.random.uniform(kmins[0],kmins[1])
+            k_max = np.random.uniform(kmaxs[0],kmaxs[1])
+        else: 
+            k_min = float(config['k_min'])
+            k_max = float(config['k_max'])
         k_mins.append(k_min)
         k_maxs.append(k_max)
 
         results = sbf_functions.measure_sbf(sbf_resid[config['ext']].data, psf, mask=sbf_mask, k_range=[k_min, k_max],
                         fit_param_guess=[100, 50], num_radial_bins=config['num_radial_bins'],
                         use_sigma=config['use_sigma'])
+        signal = (results.p[0])*config['gain']/config['exposure_time']/results.npix
+        
+        if config['include_blank_field_correction']:
+            blank_results = sbf_functions.measure_sbf(blank_resid[config['ext']].data, psf, mask=blank_mask, k_range=[k_min, k_max],
+                        fit_param_guess=[100, 50], num_radial_bins=config['num_radial_bins'],
+                        use_sigma=config['use_sigma'])
+            signal = (results.p[0]-blank_results.p[0])*config['gain']/config['exposure_time']/results.npix
+            used_blank_nums.append(blank_num)
 
+        # Should probably modify this in the case where blank_results!=None
         chisq = misc.get_chisquare(f_obs=(results.ps_image / results.npix), f_exp= (results.fit_func(results.k, *results.p) / results.npix))
-
         chi_squares.append(chisq)
-        sbf_mag, d_a, d_b = sbf_functions.get_sbf_distance(results, config['zpt'], config['color'], config['gain'], config['exposure_time'], colorterm = config['color_term'], extinction_correction=config['extinction'])
+
+        sbf_mag, d_a, d_b = sbf_functions.get_sbf_distance(results, config['zpt'], config['color'], config['gain'], config['exposure_time'], colorterm = config['color_term'], extinction_correction=config['extinction'], blank_field_results=blank_results)
+
         sbf_mags.append(sbf_mag)
         dists_a.append(d_a)
         dists_b.append(d_b)
         all_results.append(results)
+        signals.append(signal)
+
 
         iter+=1
 
 
     chi_squares=np.asarray(chi_squares)
-    wavg_mag = np.average(sbf_mags,weights=1/chi_squares)
-    wavg_dist_a = np.average(dists_a,weights=1/chi_squares)
-    wavg_dist_b = np.average(dists_b,weights=1/chi_squares)
+    if config['include_blank_field_correction']:
+        wavg_mag = np.median(sbf_mags)
+        wavg_dist_a = np.median(dists_a)
+        wavg_dist_b = np.median(dists_b)
+        uncert_mag = np.std(sbf_mags)
+    else:
+        wavg_mag = np.average(sbf_mags,weights=1/chi_squares)
+        wavg_dist_a = np.average(dists_a,weights=1/chi_squares)
+        wavg_dist_b = np.average(dists_b,weights=1/chi_squares)
+        uncert_mag = np.std(sbf_mags)
     logger.info(f'SBF result:\nSBF magnitude: {round(wavg_mag,3)}\nSBF distance (using Eqn. 2 from Jerjen 2000): {round(wavg_dist_a/1e6,3)} Mpc\nSBF distance (using Eqn. 3 from Jerjen 2000): {round(wavg_dist_b/1e6,3)} Mpc')
 
     k_mins=np.asarray(k_mins)
@@ -143,6 +190,10 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
         file = open(os.path.join(config['out_dir'],out_name), "wb")
         np.save(file, arr)
         file.close
+        
+    print('Median signal: ',np.median(np.asarray(signals)))
+    print('Std of signal: ',np.std(np.asarray(signals)))
+    print('S/N: ',np.median(np.asarray(signals))/np.std(np.asarray(signals)))
 
 
     idx = np.where(chi_squares==chi_squares.min())[0][0]
@@ -179,26 +230,30 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
                     use_sigma=config['use_sigma'])
 
     sbf_resid[config['ext']].data[sbf_mask.astype(bool)] = 0.0
-    if run_iter is None:
+    if run_iter == None:
         save_fn = os.path.join(config['out_dir'],config['model_fn'].replace('.fits','_sbf-results.png'))
     else:
         save_fn = os.path.join(config['out_dir'],config['model_fn'].replace('.fits',f'_sbf-results_iter{run_iter}.png'))
 
-    sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spacial Frequency (pixel$^{-1}$)',
+    sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spatial Frequency (pixel$^{-1}$)',
                     ylabel=f'Power ({color}-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
-                    yscale='log', plot_errors=True, ylim_factors=[0.5, 1.1],
+                    yscale='log', plot_errors=False, ylim_factors=[0.5, 1.1],
                     cmap='gray_r',save_fn=save_fn)
 
-
     # Plot SBF mag
-    '''
-    plt.clf()
-    for results in all_results:
-        plt.plot(results.k, results.fit_func(results.k, *results.p) / results.npix, color='purple', linewidth = 1.0)#2.5)
-        #plt.fill_between(results.k, test_acc.mean(axis=1) - test_acc.std(axis=1), test_acc.mean(axis=1) + test_acc.std(axis=1), color='#888888', alpha=0.4)
-        #plt.fill_between(results.k, test_acc.mean(axis=1) - 2*test_acc.std(axis=1), test_acc.mean(axis=1) + 2*test_acc.std(axis=1), color='#888888', alpha=0.2)
-
-    fig.savefig(os.path.join(config['out_dir'],'all_sbf_results'), bbox_inches='tight', dpi=200)
-    '''
-
-    return wavg_mag, wavg_dist_a, wavg_dist_b
+    if plot_blank_fields:
+        for key in blank_inputs:
+            
+            blank_result = sbf_functions.measure_sbf(blank_inputs[key]['resid'][config['ext']].data, psf, mask=blank_inputs[key]['mask'], k_range=[k_min, k_max],
+                    fit_param_guess=[100, 50], num_radial_bins=config['num_radial_bins'],
+                    use_sigma=config['use_sigma'])
+            blank_inputs[key]['resid'][config['ext']].data[blank_inputs[key]['mask'].astype(bool)] = 0.0
+            blank_inputs[key]['results'] = blank_result
+            
+        # Make it so that sbf_results function plots all the blank fields.
+        sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spacial Frequency (pixel$^{-1}$)',
+                ylabel=f'Power ({color}-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
+                yscale='log', plot_errors=False, ylim_factors=[0.5, 1.1],
+                cmap='gray_r',save_fn=save_fn.replace('.png','_withblankfields.png'), normalize_ps = True, plot_blank_fields = True, blank_results = blank_inputs)
+        
+    return wavg_mag, wavg_dist_a, wavg_dist_b, uncert_mag

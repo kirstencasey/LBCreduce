@@ -15,11 +15,6 @@ def run_artimager(config, options={}):
     if config['include_readnoise']: readnoise = config['readnoise']
     else: readnoise = 0
 
-    zpt_inst = {config['color1']['artpop_band'] : config['color1']['zpt'] + 0.190278,
-                config['color2']['artpop_band'] : config['color2']['zpt'] - 0.107512}
-
-    imager = artpop.ArtImager(phot_system=None, zpt_inst=zpt_inst, read_noise = readnoise, random_state = np.random.RandomState(config['random_state']))
-
     src = artpop.MISTSersicSSP(
         log_age = config['artpop_model_params']['log_age'],             # log of age in years
         feh = config['artpop_model_params']['feh'],                     # metallicity [Fe/H]
@@ -38,14 +33,21 @@ def run_artimager(config, options={}):
         add_remnants = config['add_remnants']
     )
 
-    #colors = src.mags[config['color2']['artpop_band']] - src.mags[config['color1']['artpop_band']]
-    color_inst = (src.sp.total_mag(config['color2']['artpop_band'])-src.sp.total_mag(config['color1']['artpop_band'])+config['color2']['extinction']-config['color1']['extinction'])/(config['color1']['color_term']-config['color2']['color_term']+1)
-    #color_inst = (src.sp.total_mag(config['color2']['artpop_band'])-0.107512-src.sp.total_mag(config['color1']['artpop_band'])-0.190278+config['color2']['extinction']-config['color1']['extinction']-config['color2']['zpt']+config['color1']['zpt'])/(config['color1']['color_term']-config['color2']['color_term']+1)
+    # Updated ArtPop version (0.1.0):
+    color_inst = (src.sp.total_mag(config['color2']['artpop_band'])+0.107512-src.sp.total_mag(config['color1']['artpop_band'])+0.190278+config['color2']['extinction']-config['color1']['extinction'])/(config['color1']['color_term']-config['color2']['color_term']+1)
+    
     term1 = color_inst*config['color1']['color_term']
     term2 = color_inst*config['color2']['color_term']
+    
+    zpt_inst = {config['color1']['artpop_band'] : config['color1']['zpt'] + 0.190278 - term1,
+                config['color2']['artpop_band'] : config['color2']['zpt'] - 0.107512 - term2} # Vega -> AB mags
 
-    src.mags[config['color1']['artpop_band']] = src.mags[config['color1']['artpop_band']] + 0.190278 + config['color1']['extinction'] + term1    # Vega -> AB mags, color/extinction correction
-    src.mags[config['color2']['artpop_band']] = src.mags[config['color2']['artpop_band']] - 0.107512 + config['color2']['extinction'] + term2   # Vega -> AB mags, color/extinction correction
+    imager = artpop.ArtImager(phot_system=None, zpt_inst=zpt_inst, read_noise = readnoise, random_state = np.random.RandomState(config['random_state']))
+
+    # Updated ArtPop version (0.1.0):
+    src.mags[config['color1']['artpop_band']] = src.mags[config['color1']['artpop_band']]  + config['color1']['extinction'] #+ term1    # color/extinction correction
+    src.mags[config['color2']['artpop_band']] = src.mags[config['color2']['artpop_band']]  + config['color2']['extinction'] #+ term2   # color/extinction correction
+
 
     if config['include_sky_sb']:
         sky_sb1 = config['color1']['sky_sb']
@@ -58,6 +60,11 @@ def run_artimager(config, options={}):
     obs2 = imager.observe(src, bandpass=config['color2']['artpop_band'], psf=psf2, exptime=config['exposure_time'], sky_sb=sky_sb2)
     model1 = obs1.raw_counts
     model2 = obs2.raw_counts
+    #model1 = obs1.image + term1
+    #model2 = obs2.image + term2
+    
+    #model1 = model1/obs1.calibration + obs1.sky_counts
+    #model2 = model2/obs2.calibration + obs2.sky_counts
 
     if config['include_sky_sb']:
         print('SKY COUNTS: ',obs1.sky_counts)
@@ -69,9 +76,15 @@ def run_artimager(config, options={}):
     model2 = model2 / config['gain']
 
     header = fits.Header(config['artpop_model_params'])
-    header[config['color1']['artpop_band']+'_mag'] = src.sp.total_mag(config['color1']['artpop_band'])
-    header[config['color2']['artpop_band']+'_mag'] = src.sp.total_mag(config['color2']['artpop_band'])
-    header[config['color1']['artpop_band']+'_sbfmag'] = src.sp.sbf_mag(config['color1']['artpop_band'])
+    # Old ArtPop version (0.2):
+    #header[config['color1']['artpop_band']+'_mag'] = src.sp.total_mag(config['color1']['artpop_band'])
+    #header[config['color2']['artpop_band']+'_mag'] = src.sp.total_mag(config['color2']['artpop_band'])
+    #header[config['color1']['artpop_band']+'_sbfmag'] = src.sp.sbf_mag(config['color1']['artpop_band'])
+    
+    # Updated ArtPop version (0.1.0):
+    header[config['color1']['artpop_band']+'_mag'] = src.sp.total_mag(config['color1']['artpop_band']) - 0.190278 # AB -> Vega
+    header[config['color2']['artpop_band']+'_mag'] = src.sp.total_mag(config['color2']['artpop_band']) + 0.107512 # AB -> Vega
+    header[config['color1']['artpop_band']+'_sbfmag'] = src.sp.sbf_mag(config['color1']['artpop_band']) - 0.190278 # AB -> Vega
     header[config['color1']['artpop_band']+'_zpt'] = config['color1']['zpt']
     header[config['color2']['artpop_band']+'_zpt'] = config['color2']['zpt']
     header[config['color1']['artpop_band']+'_extinction'] = config['color1']['extinction']
@@ -85,7 +98,12 @@ def run_artimager(config, options={}):
         header[config['color2']['artpop_band']+'_sky_sb'] = config['color2']['sky_sb']
     if config['include_readnoise']:
         header['readnoise'] = config['readnoise']
-    header['color'] = src.sp.total_mag(config['color2']['artpop_band']) - src.sp.total_mag(config['color1']['artpop_band'])
+     
+    # Old ArtPop version (0.2):
+    #header['color'] = src.sp.total_mag(config['color2']['artpop_band']) - src.sp.total_mag(config['color1']['artpop_band'])
+    
+    # Updated ArtPop version (0.1.0):
+    header['color'] = (src.sp.total_mag(config['color2']['artpop_band']) + 0.107512) - (src.sp.total_mag(config['color1']['artpop_band']) - 0.190278) # AB -> Vega
 
     hdu0 = fits.PrimaryHDU(header=header)
     header['EXTNAME'] = 'raw_counts'
@@ -114,6 +132,10 @@ def run_artimager(config, options={}):
 
     new_hdul1.close()
     new_hdul2.close()
+    
+    print('r-band mag: ',header[config['color1']['artpop_band']+'_mag'])
+    print('b-band mag: ',header[config['color2']['artpop_band']+'_mag'])
+    print('color: ',header['color'])
 
     if config['use_src_counts'] : return model1_src, model2_src, src
 

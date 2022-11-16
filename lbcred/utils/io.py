@@ -13,7 +13,7 @@ try:
 except:
     import pickle
 from collections import OrderedDict
-from pymfit import model
+from pymfit.model import param_names
 
 
 __all__ = [
@@ -238,7 +238,7 @@ def read_results(filename, models):
 
     model_params = OrderedDict()
     for m in models:
-        model_params[m] = model.param_names[m]
+        model_params[m] = param_names[m]
 
     bestfit_params = OrderedDict()
     par_num = 0
@@ -264,3 +264,31 @@ def read_results(filename, models):
         bestfit_params['reduced_chisq'] = float(reduced_chisq)
 
     return bestfit_params
+    
+def write_results(results, filename, comments=[]):
+    '''
+    Only works with Sersic functions right now
+    '''
+    
+    # Open file
+    f = open(filename, 'w')
+    
+    # Write params line by line
+    for comment in comments:
+        f.write('# '+comment)
+        f.write('\n')
+    
+    f.write('X0\t\t'+str(results['X0'])+' # +/- 9999.9999\n')
+    f.write('Y0\t\t'+str(results['Y0'])+' # +/- 9999.9999\n')
+    f.write('FUNCTION Sersic\n')
+    f.write('PA\t\t' + str(results['PA'])+' # +/- 9999.9999\n')
+    f.write('ell\t\t'+str(results['ell'])+' # +/- 9999.9999\n')
+    f.write('n\t\t'+str(results['n'])+' # +/- 9999.9999\n')
+    f.write('I_e\t\t'+str(results['I_e'])+' # +/- 9999.9999\n')
+    f.write('r_e\t\t'+str(results['r_e'])+' # +/- 9999.9999\n')
+        
+    # Close the file
+    f.close()
+    
+    return
+    

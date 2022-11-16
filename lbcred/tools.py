@@ -426,7 +426,9 @@ def process(config, file_info):
 		# Find the best master flat frame, divide
 		if config['flat']:
 			data_temp = data
-			flat = image.find_best_masterframe('flat', im, config, date = sci_date)
+			if config['use_flat_date'] != None: flat_date = config['use_flat_date']
+			else: flat_date = sci_date
+			flat = image.find_best_masterframe('flat', im, config, date = flat_date)
 			flat.data[np.where(flat.data==0)]='Nan'
 			data = CCDData.divide(data_temp, flat)
 			data.meta = data_temp.meta

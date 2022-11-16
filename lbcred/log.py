@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 class LBCreduceLogger(AstropyLogger):
 
-    def _set_defaults(self, level='INFO'):
+    def _set_defaults(self, level='DEBUG'):
         """
         Reset logger to its initial state
         """

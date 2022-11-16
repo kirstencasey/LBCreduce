@@ -74,7 +74,7 @@ sbf_ylabel = r'Power'
 def sbf_results(sbf, residual_image, subplots=None, xlabel=sbf_xlabel,
                 ylabel=sbf_ylabel, xscale='linear', percentiles=[0.1, 99.9],
                 yscale='log', plot_errors=True, ylim_factors=[0.5, 1.1],
-                cmap='gray_r',save_fn=None):
+                cmap='gray_r',save_fn=None, normalize_ps = False, plot_blank_fields=False, blank_results = {}): 
 
     if subplots is None:
         fig, ax = plt.subplots(1, 2, figsize=(15, 6.5))
@@ -88,34 +88,43 @@ def sbf_results(sbf, residual_image, subplots=None, xlabel=sbf_xlabel,
                  vmin=vmin, vmax=vmax)
 
     ax[0].set(xticks=[], yticks=[])
+    
+    if normalize_ps:
+        normalization = sbf.p[1] / sbf.npix
 
-    ax[1].axhline(y=sbf.p[1] / sbf.npix, ls='--', c='lightgray', lw=2)
-    norm = sbf.fit_func(sbf.k, *sbf.p).max() / sbf.ps_psf.max()
-    ax[1].plot(sbf.k, sbf.ps_psf * norm / sbf.npix, ls='--',
-                   c='lightgray', lw=2)
-
-    ax[1].plot(sbf.k, sbf.fit_func(sbf.k, *sbf.p) / sbf.npix,
-                   c='tab:purple', lw=2.5)
-    if plot_errors:
-        ax[1].errorbar(sbf.k, sbf.ps_image / sbf.npix,
-                       yerr=sbf.ps_image_err / sbf.npix,
-                       fmt='k.', lw=2, capsize=3, capthick=1.5, zorder=10)
     else:
-        ax[1].plot(sbf.k, sbf.ps_image / sbf.npix, 'k-', lw=2)
+        normalization = 1.
+        
+    ax[1].axhline(y=sbf.p[1] / normalization / sbf.npix, ls='--', c='gray', lw=3)   # White noise floor
+    norm = sbf.fit_func(sbf.k, *sbf.p / normalization).max() / sbf.ps_psf.max()
+    ax[1].plot(sbf.k, sbf.ps_psf * norm / sbf.npix, ls='--',
+                   c='gray', lw=3)                                  # PSF contribution to power spectrum
 
-    ymax = ((sbf.ps_image + sbf.ps_image_err) / sbf.npix).max()
+    ax[1].plot(sbf.k, sbf.fit_func(sbf.k, *sbf.p / normalization) / sbf.npix,
+                   c='slateblue', lw=3)                             # Power spectrum fit
+    if plot_errors:
+        ax[1].errorbar(sbf.k, sbf.ps_image / normalization / sbf.npix,
+                       yerr=sbf.ps_image_err / sbf.npix,
+                       fmt='k.', lw=2, capsize=3, capthick=1.5, zorder=10)  # Measured power spectrum - points with errorbars
+    else:
+        ax[1].plot(sbf.k, sbf.ps_image / normalization / sbf.npix, 'k-', lw=2)              # Measured power spectrum - line
+        
+    if plot_blank_fields:
+        for key in blank_results:
+            ax[1].plot(blank_results[key]['results'].k, blank_results[key]['results'].ps_image / normalization / blank_results[key]['results'].npix, color='tan', lw=2, zorder=0, alpha=0.5)
+
+    ymax = (((sbf.ps_image / normalization) + sbf.ps_image_err) / sbf.npix).max()
 
     ax[1].set_xscale(xscale)
     ax[1].set_yscale(yscale)
-    ax[1].set_ylim(sbf.p[1] * ylim_factors[0] / sbf.npix,
+    ax[1].set_ylim(sbf.p[1] / normalization * ylim_factors[0] / sbf.npix,
                    ymax * ylim_factors[1])
     ax[1].set_xlabel(xlabel, fontsize=25)
     ax[1].set_ylabel(ylabel, fontsize=25)
     ax[1].tick_params(labelsize=20)
     ax[1].minorticks_on()
     if save_fn is not None:
-        fig.savefig(save_fn, bbox_inches='tight', dpi=200)
-
+        fig.savefig(save_fn, bbox_inches='tight', dpi=500)
 
     return fig, ax
 
@@ -187,9 +196,13 @@ def measure_sbf(normed_res_image, psf, mask=None, k_range=[0.01, 0.4],
     return results
 
 
-def get_sbf_distance(results, zeropoint, color, gain, texp, colorterm = None, extinction_correction=None):
+def get_sbf_distance(results, zeropoint, color, gain, texp, colorterm = None, extinction_correction=None, blank_field_results=None):
 
-    sbf_mag = zeropoint - 2.5*np.log10(results.p[0]*gain/texp/results.npix)
+    if blank_field_results != None:
+        sbf_mag = zeropoint - 2.5*np.log10((results.p[0]-blank_field_results.p[0])*gain/texp/results.npix)
+
+    else:
+        sbf_mag = zeropoint - 2.5*np.log10(results.p[0]*gain/texp/results.npix)
 
     if colorterm is not None:
         sbf_mag -= colorterm*color
@@ -217,7 +230,7 @@ def elliptical_mask(shape, pars, scale=2):
     ell_mask = ~ell.to_mask().to_image(shape).astype(bool)
     return ell_mask
 
-def get_sbf_mask_resid(model_fn, resid_fn, sersic_params, grow_obj, scale, config):
+def get_sbf_mask_resid(model_fn, resid_fn, sersic_params, grow_obj, scale, config, blank_field=False):
 
     resid = fits.open(resid_fn)
     model = fits.open(model_fn)
@@ -232,7 +245,10 @@ def get_sbf_mask_resid(model_fn, resid_fn, sersic_params, grow_obj, scale, confi
     resid.writeto(sbf_resid_fn,overwrite=config['overwrite'])
 
     # Make pymfit masks
-    mask_fn = model_fn.replace(f'.fits','_sbf_mask.fits')
+    if blank_field:
+        mask_fn = resid_fn.replace(f'.fits','_sbf_mask.fits')
+    else:
+        mask_fn = model_fn.replace(f'.fits','_sbf_mask.fits')
     dist_mod = 5*np.log10(config['assumed_distance']*10**6)-5
     app_mag = dist_mod+config['given_abs_mag_to_mask']
     resid_no_norm = np.ascontiguousarray(resid_no_norm)

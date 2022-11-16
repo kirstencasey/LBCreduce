@@ -3,24 +3,24 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to model.
 
-image_dir : '/Users/kirstencasey/real_image_tests/star_subtraction_tests/auto_starsub_test' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing'  # Where all the files needed for image reduction are located
-out_dir :  '/Users/kirstencasey/real_image_tests/star_subtraction_tests/auto_starsub_test' #'/Users/kirstencasey/background_subtraction_tests/single-exposure_output/sci/imfit_sbf' #'/Users/kirstencasey/m81blob_out/sci/lbc-reduce_testing' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
-model_fn : 'artpop_sersic_r.fits' #'random_position_mock_injected_sersic_tiltedplane_model_r_2_Sersic.fits' #'mean_stack_cutout_sersic_tiltedplane_model_r_2_Sersic.fits'
-resid_fn : 'artpop_sersic_resid_r.fits' #'random_position_mock_injected_sersic_tiltedplane_resid_r.fits' #'mean_stack_cutout_sersic_tiltedplane_resid_r.fits' # If create_resid_from_model is True then this is the filename the created residual will be saved under
-create_resid_from_model : False
+image_dir : '/fs/scratch/PCON0003/osu10713/free_struc_params/blobby_polynomial/polynomial'  # Where all the files needed for image reduction are located
+out_dir :  '/fs/scratch/PCON0003/osu10713/free_struc_params/blobby_polynomial/polynomial' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
+model_fn : 'mean_stack_starsub_cutout1_TiltedSkyPlane_Sersic_model_r_2_Sersic.fits' # This should ONLY contain the Sersic component of the model; NO background, flat sky, tilted sky, etc. 
+resid_fn : 'mean_stack_starsub_cutout1_TiltedSkyPlane_Sersic_resid_r.fits'  # If create_resid_from_model is True then this is the filename the created residual will be saved under; This should not be normalized. It should simply be the original image - model. 
+create_resid_from_model : False # Set to True if you only have the model and the original image
 orig_image_fn : 'noise_artpop_injected_r.fits' # This is ignored unless create_resid_from_model is True
-model_summary_fn : #'blank_sky_near_star_mock_injected_sersic_tiltedplane_bestfit-params_r.txt' #'mean_stack_cutout_sersic_tiltedplane_bestfit-params_r.txt'
-psf : 'lbcr.median_psf_298.fits'
-num_iters : 50
+model_summary_fn : 'mean_stack_starsub_cutout1_TiltedSkyPlane_Sersic_bestfit-params_r.txt'
+psf : 'lbcr.median_psf_4.fits'
+num_iters : 50 # Number of times the SBF measurement is repeated using different randomized parameters (eg. k-limits, mask radius, etc. provided in SBF Options section)
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 
 ############################### Other Common Options ###############################
 # NOTE: These are other commonly-used options you may find useful to change depending on your needs.
 
 color_name : 'r'
-color_term :  0.0 #-0.0950107466670183
-extinction : 0. #0.053
-zpt : 28. #27.83783164207953
+color_term :  -0.1412362302206293 
+extinction : 0.053
+zpt : 27.85336985235088
 pixscale : 0.22400
 exposure_time : 300.281 # seconds
 gain : 1.75
@@ -29,32 +29,37 @@ logger_level : 'INFO' # What is the lowest-level output you want to see on the t
 log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
 
 # Bestfit model results (ignored if model_summary_fn is provided)
-radius : 221.02
-xpos : 525.0
-ypos : 525.0
-ellip : -0.0926788
-n : 0.52078
+radius : 226.66
+xpos : 520.6031
+ypos : 535.6659
+ellip : 0.102
+n : 0.653
 I_e : 7.434
 pa : 9.53788
-color : 1.2566041142595807
+color : 1.205
 
 ############################### SBF Options ###############################
 # NOTE:
 
 # SBF fitting
-k_min : 0.05
-k_max : 0.4
+k_min : '0.04,0.1' # '0.04,0.08' 
+k_max : '0.3,0.4' # '0.33,0.45'
 randomly_vary_k_limits : True
-random_k_limit_deviation : 0.05
-min_random_diff_between_kmin_kmax : 0.15
-num_radial_bins : 45
+#random_k_limit_deviation : 0.05
+#min_random_diff_between_kmin_kmax : 0.15
+num_radial_bins : 400
 use_sigma : False
 plot_percentiles_min : 0.1
 plot_percentiles_max : 99.9
 
+# Blank field corrections
+include_blank_field_correction : True
+pre_selected_fields : '/users/PCON0003/osu10713/M81blob/blank_fields_new.csv'
+stack_fn : 'mean_stack_starsub_r.fits' # Where the blank fields are drawn from; this should be in the folder you're running everything from
+
 # SBF masking
-given_abs_mag_to_mask : -4
-assumed_distance : 3.7 # Mpc
+given_abs_mag_to_mask : -5
+assumed_distance : 3.0 # Mpc
 
 masking_sbf:
   randomly_vary_mask_radius : False

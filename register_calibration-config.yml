@@ -2,18 +2,18 @@
 
 
 ############################### Directory and File Selection Options ###############################
-image_dir : '/Users/kirstencasey/real_image_tests/input' # Where all the files needed for image registration are located (if register_images is False this will be the input directory for calibration)
-out_dir : '/Users/kirstencasey/real_image_tests/star_subtraction_tests' # Specify desired path of output directory for image registration (if register_images is True this will be the input directory for calibration).
+image_dir : '/users/PCON0003/osu10713/M81blob/input_images_starsubtracted' # Where all the files needed for image registration are located (if register_images is False this will be the input directory for calibration)
+out_dir : '/fs/scratch/PCON0003/osu10713/blobby' # Specify desired path of output directory for image registration (if register_images is True this will be the input directory for calibration).
 artpop_model_dir : #'/Users/kirstencasey/background_subtraction_tests/single-exposure_input/artpop_models'
 glob_select : 'M81blob.proc.fits' #_backsub_M81blob.proc_reg.fits
-reference_catalog : '/Users/kirstencasey/background_subtraction_tests/panstarrs-137.6-73.4.csv'
-reference_catalog_withBESSEL : '/Users/kirstencasey/background_subtraction_tests/panstarrs-137.6-73.4_withBESSEL.dat'
+reference_catalog : '/users/PCON0003/osu10713/M81blob/panstarrs-137.6-73.4.csv'
+reference_catalog_withBESSEL : '/users/PCON0003/osu10713/M81blob/panstarrs-137.6-73.4_withBESSEL.dat'
 index-path :
-final_stack_fn_r : mean_stack_SEsky_background_r.fits #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits'
-final_stack_fn_b : mean_stack_SEsky_background_b.fits #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits'
-stack_color_id_r : '_r' # 'lbcr', '_r'
-psf_fn_r : 'lbcr.median_psf_298.fits'
-psf_fn_b : 'lbcb.median_psf_298.fits'
+final_stack_fn_r : 'mean_stack_starsub_r.fits' #'lbcr.20191220.080711-chip2_backsub_M81blob.proc_reg.fits'
+final_stack_fn_b : 'mean_stack_starsub_b.fits' #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits'
+stack_color_id_r : '_r' # 'lbcr'
+psf_fn_r : 'lbcr.median_psf.fits'
+psf_fn_b : 'lbcb.median_psf.fits'
 run_on_cali_files : False
 run_on_sci_files : True
 make_plots : True
@@ -36,32 +36,34 @@ pixscale : 0.224
 chip_num : 2 # Can only handle one chip at a time right now...
 
 # Model and subtract very bright stars:
-model_subtract_star : True # Set imfit parameters in imfit_config
-imfit_config : '/Users/kirstencasey/projects/LBCreduce/modeling-config_imfit.yml'
-custom_mask_csv_fn : '/Users/kirstencasey/real_image_tests/star_subtraction_tests/manual_star_subtraction_masks.csv'
+model_subtract_star : False # Set imfit parameters in imfit_config
+imfit_config : '/users/PCON0003/osu10713/projects/LBCreduce/modeling-config_imfit.yml'
+custom_mask_csv_fn : '/users/PCON0003/osu10713/M81blob/manual_star_subtraction_masks.csv'
 
 ############################### Background Subtraction Options ###############################
 background_model : 'polynomial' # Options: 'SEsky', 'median', 'clipped_mean', 'plane', 'polynomial'
 save_background_models : True
 generate_image_mask : True
-image_mask_thresh : 5 # This uses mad_std to determine masked pixels
+image_mask_thresh : 5 # This uses mad_std to determine masked pixels - if this is too low the mask will fail (look for pixel stack overflow warning)
+grow_mask_sig :  # Gaussian sigma used to grow background mask; Do not specify if you don't want the mask grown. If this is too low the mask will fail (look for pixel stack overflow warning)
+use_custom_mask : True
 
 SEsky :
   box_size : 800
 
 median :
-  initialize_with_SEsky : True
+  initialize_with_SEsky : True # If this is False, there is no implementation yet for generating a mask for the fit
 
 clipped_mean :
   thresh : 3
-  initialize_with_SEsky : True
+  initialize_with_SEsky : True # If this is False, there is no implementation yet for generating a mask for the fit
 
 plane :
-  initialize_with_SEsky : True
+  initialize_with_SEsky : True # If this is False, there is no implementation yet for generating a mask for the fit
 
 polynomial :
   degree : 1
-  initialize_with_SEsky : True
+  initialize_with_SEsky : True # If this is False, there is no implementation yet for generating a mask for the fit
 
 
 ############################### Calibration Options ###############################
@@ -90,21 +92,25 @@ all_exposures :
     cut_star_nums_r : ''
     cut_star_nums_b : '111,114,240,322,325,571'
   sci:
-    cut_star_nums_r : '405' #'43,87'
-    cut_star_nums_b : '376' #'176,377' #'12,14,18,55'
+    cut_star_nums_r : '43,159,253,291,312' #'405' 
+    cut_star_nums_b : '14,50,111,143,149,234' #'376' #'176,377' 
 
 stack :
   cali:
     cut_star_nums_r : ''
     cut_star_nums_b : '111,114,240,322,325,571'
   sci:
-    cut_star_nums_r : '' #'15'
-    cut_star_nums_b : '3,6'
+    cut_star_nums_r : '10,11' #'15'
+    cut_star_nums_b : '2,3,6'
 
 
 ############################### Stack PSF Options ###############################
 construct_psf : True
-psf_star :
+choose_from_csv : True # If True chooses star from psf_stars, if False uses psf_star
+psf_stars_idx : 4 # If None and choose_from_csv is True, chooses random star from psf_stars; else uses star at given index (starts at 0)
+psf_stars : '/users/PCON0003/osu10713/M81blob/psf_stars.csv' # CSV with coords of pre-approved psf stars
+update_psf_fns : True # Ignored if choose_from_csv is False. If True saves psfs with fns containing idx (or similar) of the chosen star, if False just uses the psf_fns provided under 'Directory and File Selection Options'
+psf_star : # Coords of pre-approved psf star
   ra : 137.7480670
   dec : 73.4884674
 
@@ -112,15 +118,15 @@ psf_star :
 ############################### ArtPop Options ###############################
 xpos_inject : 994 # pixel; this should only be done when running on a SINGLE exposure
 ypos_inject : 1190 # pixel; this should only be done when running on a SINGLE exposure
-mist_path : '/Users/kirstencasey/Documents/Resources/MIST'
+mist_path : '/users/PCON0003/osu10713/ArtPop_tests/MIST'
 random_state : 100
 telescope_diameter : 8.25 # meters
 include_sky_sb : False # Specify the SB in the Color Options section
 include_readnoise : False # Do this if not injecting the ArtPop model into a real image that already has readnoise included
 artpop_band_r : 'Bessell_R'
 artpop_band_b : 'Bessell_B'
-extinction_r : 0.053
-extinction_b : 0.091
+extinction_r : 0. #0.053
+extinction_b : 0. #0.091
 add_remnants : False
 artpop_model_fn_r : 'artpop_model_r.fits'
 artpop_model_fn_b : 'artpop_model_b.fits'

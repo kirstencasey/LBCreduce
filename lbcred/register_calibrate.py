@@ -1,4 +1,4 @@
-import os, yaml, lbcred, random, ccdproc, warnings, sys, glob
+import os, yaml, lbcred, random, ccdproc, warnings, sys, glob, pandas
 import numpy as np
 from shutil import copyfile
 from astropy.io import fits, ascii
@@ -258,7 +258,7 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
     elif model == 'polynomial':
         line_init = models.Polynomial1D(degree=degree,domain=(0,3))
 
-    fig,ax = plt.subplots(2,2,figsize=(15,15))
+    fig,ax = plt.subplots(2,2,figsize=(15,15)) 
     files_r = np.asarray(np.unique(cat_r['filename']))
     files_b = []
     zp_arr_r = []
@@ -288,7 +288,6 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
 
         ax[1][1].scatter(x_inst,y_r,color='darkred')
         ax[1][1].plot(x_inst, fitted_line_inst_r(x_inst))
-
 
     x_p = cat_p['B-BESSEL_linear'] - cat_p['R-BESSEL_linear']
     x_inst = cat_b['aper_corrected_mag'] - cat_r['aper_corrected_mag']
@@ -344,17 +343,18 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
     return cat_r, cat_b, cat_p, zp_r, zp_b, fitted_line_inst_r.slope.value, fitted_line_inst_b.slope.value
 
 def plot_residuals(cat_r,cat_b,cat_p,mag_name,save_figs=False,fig_name=None):#,separate_exposures=False,files_r=None,files_b=None):
-    '''
+    ''' ## Not here
     if separate_exposures:
         num_plots = len(files_r)+1
         fig,ax = plt.subplots(num_plots,2,figsize=(15,num_plots*8))
-    '''
+    ''' # Not here
 
     fig,ax = plt.subplots(2,2,figsize=(15,15))
     x = cat_p['B-BESSEL_linear']
     y = cat_b[mag_name+'_pan'] - cat_p['B-BESSEL_linear']
     y_rms = np.sqrt(np.mean(np.asarray(y)**2))
     ylim = max([abs(min(y)),abs(max(y))])
+
     ax[0][0].scatter(x,y,color='darkblue')
     ax[0][0].plot(np.arange(30),np.zeros(30),linestyle='dashed', color='black')
     ax[0][0].set_xlim(min(x)-0.5,max(x)+0.5)
@@ -363,7 +363,7 @@ def plot_residuals(cat_r,cat_b,cat_p,mag_name,save_figs=False,fig_name=None):#,s
     ax[0][0].set_xlabel('Pan-STARRS B (mag)')
     ax[0][0].set_ylabel('Calibrated B mag - Pan-STARRS B mag')
     ax[0][0].title.set_text('Residuals Using Pan-STARRS Colors for Color Terms')
-
+    
     x = cat_p['R-BESSEL_linear']
     y = cat_r[mag_name+'_pan'] - cat_p['R-BESSEL_linear']
     y_rms = np.sqrt(np.mean(np.asarray(y)**2))
@@ -469,7 +469,7 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
     if ref_cat is None:
         fn =  f'panstarrs-{center[0]:.1f}-{center[1]:.1f}.dat'
         fn = os.path.join(out_path, fn)
-        print('PANSTARRS FN: ',fn)
+
         # if has been fetched previously, load local copy
         if os.path.isfile(fn):
             logger.info('reading reference catalog from ' + fn)
@@ -496,15 +496,7 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         back_out = os.path.join(out_path, 'star_subtracted')
         utils.mkdir_if_needed(back_out)
         all_files = glob.glob(os.path.join(data_path, f'lbc{bandpass.lower()}*{glob_select}'))
-
-        print('~~~~~~LOOOOOOOOOOOOOOOK HHHHEREEEEEEEEEEEE!!!!!!!!!!!!!!!!!!!!!!!')
-        print('all_files: \n',all_files)
-        print('data_path: \n', data_path)
-        print('glob_select: \n', glob_select)
-        print(f'bandpass: \nlbc{bandpass.lower()}')
-        print('back_out: \n',back_out)
-        print('CONFIG::::::: \n',config)
-
+        
         for fi in all_files:
             fi_base = fi.split('/')[-1].replace(glob_select,f'starsub_{glob_select}')
             copyfile(fi, os.path.join(back_out,fi_base))
@@ -581,7 +573,7 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
 
             if config['subtract_background']:
                 logger.info('Subtracting background for ' + fn_updated)
-                background_subtraction(filename = fn_updated, config = config, fn_id=back_fn_id)
+                background_subtraction(filename = fn_updated, config = config, fn_id=back_fn_id, temp_path=tmp_path)
 
             logger.info('Solving field for ' + fn_updated)
             solution = solve_field(fn_updated, index_path=index_path,
@@ -687,7 +679,6 @@ def calibrate_images(config):
     sci_cats_r = []
     cali_cats_b = []
     sci_cats_b = []
-
 
     # Run SE on images, store catalogs
     logger.info('Creating star catalogs...')
@@ -967,7 +958,7 @@ def calibrate_images(config):
         # Get aperture sums for all radii, in both r- and b-band
         size = (51,51)
         radii = np.arange(1,25)
-        fig, axs = plt.subplots(int(2*(len(cat_magcal_p)+1)/3), 3, figsize=(15,260))
+        fig, axs = plt.subplots(int(2*(len(cat_magcal_p)+1)/3), 3, figsize=(15,260)) 
         mask_r = []
         mask_b = []
 
@@ -1016,7 +1007,7 @@ def calibrate_images(config):
                     aper.plot(axs[row, col],color=color)
                 if saturation_warning:
                     axs[row, col].text(0,0,'SATURATED',fontsize=30,color='gold')
-
+                
                 col +=1
                 if col==3:
                     row+=1
@@ -1030,7 +1021,7 @@ def calibrate_images(config):
             else: aper_sums_all_b = aper_sums
 
 
-        plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'aperture_plots_all_exposures.png'))
+        plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'aperture_plots_all_exposures.png')) 
 
         # Remove saturated stars
         full_mask = ~(~np.asarray(mask_r)+~np.asarray(mask_b))
@@ -1076,7 +1067,7 @@ def calibrate_images(config):
         if num_exposures == 1: num_exposures+=1
         bin_size = 0.02
 
-        fig, axs = plt.subplots(num_exposures,3,figsize=(20,num_exposures*6))
+        fig, axs = plt.subplots(num_exposures,3,figsize=(20,num_exposures*6)) 
 
         flux_fracs_all_r = []
         flux_fracs_all_b = []
@@ -1123,7 +1114,7 @@ def calibrate_images(config):
                 flux_fracs_all_b = []
                 flux_levels_all_r = []
                 flux_levels_all_b = []
-
+                
                 row+=1
 
 
@@ -1182,7 +1173,6 @@ def calibrate_images(config):
             axs[row][2].set_xlim(0.1,0.8)
             #axs[row][1].set_ylim(0,1e7)
             axs[row][0].text(7,-0.35,f'{file_stub_r}\n{file_stub_b}',fontsize=20)
-
 
             prev_exp = cat_magcal_r[idx]['filename']
 
@@ -1244,11 +1234,16 @@ def calibrate_images(config):
 
         # Get exposure map
         logger.info('Creating exposure map...')
-        exp_map_r = fits.open(os.path.join(config['image_dir'],ftype,'lbcr_M81blob_exposuremap.fits'),ignore_blank=True)[0].data
-        exp_map_b = fits.open(os.path.join(config['image_dir'],ftype,'lbcb_M81blob_exposuremap.fits'),ignore_blank=True)[0].data
-
+        exp_map_hdu_r = fits.open(os.path.join(config['image_dir'],ftype,'lbcr_M81blob_exposuremap.fits'),ignore_blank=True)
+        exp_map_hdu_b = fits.open(os.path.join(config['image_dir'],ftype,'lbcb_M81blob_exposuremap.fits'),ignore_blank=True)
+        exp_map_r = exp_map_hdu_r[config['ext']].data
+        exp_map_b = exp_map_hdu_b[config['ext']].data
+         
         overlap_r = exp_map_r == np.ndarray.max(exp_map_r)
         overlap_b = exp_map_b == np.ndarray.max(exp_map_b)
+        
+        exp_map_hdu_r.close()
+        exp_map_hdu_b.close()
 
         # Get image data, background levels
         i=0
@@ -1258,6 +1253,7 @@ def calibrate_images(config):
         back_vals_b = []
 
         for im_r,im_b in zip(files_r,files_b):
+
             hdu_r = fits.open(os.path.join(config['image_dir'],ftype,im_r),ignore_blank=True)
             hdu_b = fits.open(os.path.join(config['image_dir'],ftype,im_b),ignore_blank=True)
             zp_im_r = zp_r['zp'][zp_r['filename']==im_r][0]
@@ -1275,20 +1271,6 @@ def calibrate_images(config):
 
             # Get background levels
             if weight_exp:
-                '''
-                c0_0_r = hdu_r.header['BACKSUB_PARAMVALS_0']
-                c0_0_b = hdu_b.header['BACKSUB_PARAMVALS_0']
-                c1_0_r = hdu_r.header['BACKSUB_PARAMVALS_1']
-                c1_0_b = hdu_b.header['BACKSUB_PARAMVALS_1']
-                c0_1_r = hdu_r.header['BACKSUB_PARAMVALS_2']
-                c0_1_b = hdu_b.header['BACKSUB_PARAMVALS_2']
-                back_medians_r.append(hdu_r.header['BACKSUB_MEDIAN'])
-                back_medians_b.append(hdu_b.header['BACKSUB_MEDIAN'])
-
-                weight_r[i] = 1.0/np.mean(c0_0_r + (c1_0_r*x) + (c0_1_r*y))
-                weight_b[i] = 1.0/np.mean(c0_0_b + (c1_0_b*x) + (c0_1_b*y))
-                '''
-
                 back_vals_r.append(hdu_r[config['ext']].header['BACKSUB_VAL'])
                 back_vals_b.append(hdu_b[config['ext']].header['BACKSUB_VAL'])
                 weight_r[i] = 1.0/back_vals_r[i]
@@ -1299,7 +1281,9 @@ def calibrate_images(config):
                 weight_b = None
 
             i+=1
-
+            hdu_r.close()
+            hdu_b.close()
+            
         # Create median stack
         if config['stack_images']:
             logger.info(f'Stacking {ftype} images...')
@@ -1380,8 +1364,38 @@ def calibrate_images(config):
 
     if config['run_on_sci_files'] and config['construct_psf']:
         logger.info('Calculating PSF...')
+        
+        psf_fn_r = config['psf_fn_r']
+        psf_fn_b = config['psf_fn_b']
         # Get star for PSF
-        psf_star = SkyCoord(ra=[config['psf_star']['ra']], dec=[config['psf_star']['dec']],unit='deg')
+        if not config['choose_from_csv']:
+            psf_star = SkyCoord(ra=[config['psf_star']['ra']], dec=[config['psf_star']['dec']],unit='deg')
+
+        else:
+            # Open csv
+            psf_star_positions = Table.from_pandas(pandas.read_csv(config['psf_stars']))
+            if config['psf_stars_idx'] != None and config['psf_stars_idx'] < len(psf_star_positions):
+                # Get star at idx
+                psf_idx = config['psf_stars_idx']
+                psf_ra = psf_star_positions['ra'][config['psf_stars_idx']]
+                psf_dec = psf_star_positions['dec'][config['psf_stars_idx']]
+            elif config['psf_stars_idx'] != None:
+                logger.warn('psf_stars_idx out of range. Choosing random psf star from csv instead.')
+                psf_idx = random.randint(0,len(psf_star_positions)-1)
+                psf_ra = psf_star_positions['ra'][psf_idx]
+                psf_dec = psf_star_positions['dec'][psf_idx]
+            else:
+                # Get random star from csv
+                psf_idx = random.randint(0,len(psf_star_positions)-1)
+                psf_ra = psf_star_positions['ra'][psf_idx]
+                psf_dec = psf_star_positions['dec'][psf_idx]
+            if config['update_psf_fns']:
+                    psf_fn_r = config['psf_fn_r'].replace('.fits',f'_{psf_idx}.fits')
+                    psf_fn_b = config['psf_fn_b'].replace('.fits',f'_{psf_idx}.fits')
+                    config['psf_fn_r'] = psf_fn_r
+                    config['psf_fn_b'] = psf_fn_b
+            psf_star = SkyCoord(ra=[psf_ra], dec=[psf_dec],unit='deg')
+            
         catalog = SkyCoord(ra=cat_all_sci_r['ALPHA_J2000'], dec=cat_all_sci_r['DELTA_J2000'],unit='deg')
         idx, _, _ = psf_star.match_to_catalog_sky(catalog)
         psf_star = catalog[idx]
@@ -1416,14 +1430,19 @@ def calibrate_images(config):
 
             psfs_r.append(psf_r)
             psfs_b.append(psf_b)
+            
+            hdul_r.close()
+            hdul_b.close()
 
         psf_median_r = np.median(psfs_r,axis=0)
         psf_median_b = np.median(psfs_b,axis=0)
 
         hdu_r = fits.PrimaryHDU(psf_median_r)
-        hdu_r.writeto(os.path.join(config['image_dir'],'sci',config['psf_fn_r']),overwrite=True)
+        hdu_r.writeto(os.path.join(config['image_dir'],'sci',psf_fn_r),overwrite=True)
+        hdu_r.writeto(os.path.join(config['image_dir'],psf_fn_r),overwrite=True)
         hdu_b = fits.PrimaryHDU(psf_median_b)
-        hdu_b.writeto(os.path.join(config['image_dir'],'sci',config['psf_fn_b']),overwrite=True)
+        hdu_b.writeto(os.path.join(config['image_dir'],'sci',psf_fn_b),overwrite=True)
+        hdu_b.writeto(os.path.join(config['image_dir'],psf_fn_b),overwrite=True)
         '''
         fig,ax = plt.subplots(1,2,figsize=(12,6))
         ax[0].imshow(psf_median_r,origin='lower',cmap='gray')
@@ -1467,7 +1486,7 @@ def calibrate_images(config):
                 stack_cat_r = cat
             else:
                 stack_cat_b = cat
-            print('BASE: ',fn_base)
+
         # Clean catalogs, match to Pan-STARRS
 
         # Sort catalogs, remove some known bad objects
@@ -1504,9 +1523,10 @@ def calibrate_images(config):
 
         idx, sep, _ = obj_in_panstarrs_small_coord.match_to_catalog_sky(obj_in_panstarrs_large_coord)
         mask = sep.arcsec < config['allowed_sep']
+
         obj_in_panstarrs_small = obj_in_panstarrs_small[mask]
         obj_in_panstarrs_large = obj_in_panstarrs_large[idx[mask]]
-        print('Matched panstarrs catalog length: ',len(obj_in_panstarrs_large))
+
         if '_r' in obj_in_panstarrs_large[0]['filename']:
             obj_in_panstarrs_r = obj_in_panstarrs_large
             obj_in_panstarrs_b = obj_in_panstarrs_small
@@ -1658,7 +1678,7 @@ def calibrate_images(config):
             if band == 'r':
                 aper_sums_stack_r = aper_sums
             else: aper_sums_stack_b = aper_sums
-
+            im_hdul.close()
 
         plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'aperture_plots_stacks.png'))
 
@@ -1809,4 +1829,4 @@ def calibrate_images(config):
         print('r-band: ',color_term_stack_r)
         print('b-band: ',color_term_stack_b)
 
-    return
+    return psf_fn_r, psf_fn_b

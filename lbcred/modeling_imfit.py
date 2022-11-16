@@ -56,9 +56,9 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
         if not config['run_imfit']:
             color1 = config['color1']['name']
             color2 = config['color2']['name']
-            src_color1 = src.sp.total_mag('Bessell_R')
-            src_color2 = src.sp.total_mag('Bessell_B')
-            src_sbfmag1 = src.sp.sbf_mag('Bessell_R')
+            src_color1 = src.sp.total_mag('Bessell_R') - 0.190278 # AB -> Vega
+            src_color2 = src.sp.total_mag('Bessell_B') + 0.107512 # AB -> Vega
+            src_sbfmag1 = src.sp.sbf_mag('Bessell_R') - 0.190278 # AB -> Vega
             logger.info(f'ArtPop model : \n{color1}-band magnitude: {src_color1}\n{color2}-band magnitude: {src_color2}\n{color2}-{color1} color: {src_color2-src_color1}\n{color1}-band SBF magnitude: {src_sbfmag1}\n')
 
     # Inject model into image(s) if necessary
@@ -189,19 +189,19 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
         results2 = imfit_results[final_step2]['results'].results[f'comp_{comp2}']
         bf1_fn = imfit_results[final_step1]['bestfit_fn']
         bf2_fn = imfit_results[final_step2]['bestfit_fn']
-        mag1, mag2, color = imfit.summarize_results(config, results1, results2)
+        mag1, mag2, color, orig_color = imfit.summarize_results(config, results1, results2)
 
         ######### END
 
         logger.info(f'Imfit result : \n{color1}-band magnitude: {mag1}\n{color2}-band magnitude: {mag2}\n{color2}-{color1} color: {color}\n')
 
         if config['run_artpop']:
-            src_color1 = src.sp.total_mag('Bessell_R')
-            src_color2 = src.sp.total_mag('Bessell_B')
-            src_sbfmag1 = src.sp.sbf_mag('Bessell_R')
+            src_color1 = src.sp.total_mag('Bessell_R') - 0.190278 # AB -> Vega
+            src_color2 = src.sp.total_mag('Bessell_B') + 0.107512 # AB -> Vega
+            src_sbfmag1 = src.sp.sbf_mag('Bessell_R') - 0.190278 # AB -> Vega
             logger.info(f'ArtPop model : \n{color1}-band magnitude: {src_color1}\n{color2}-band magnitude: {src_color2}\n{color2}-{color1} color: {src_color2-src_color1}\n{color1}-band SBF magnitude: {src_sbfmag1}\n')
             logger.info(f'Errors : \n{color1}-band magnitude: {mag1-src_color1}\n{color2}-band magnitude: {mag2-src_color2}\n{color2}-{color1} color: {color - (src_color2-src_color1)}\n')
-        elif config['inject_artpop_model'] and config['color1']['artpop_mag'] is not None and config['color2']['artpop_mag'] is not None:
+        elif config['inject_artpop_model'] and config['color1']['artpop_mag'] != None and config['color2']['artpop_mag'] != None:
             src_color1 = config['color1']['artpop_mag']
             src_color2 = config['color2']['artpop_mag']
             src_sbfmag1 = config['color1']['artpop_sbfmag']
@@ -222,7 +222,7 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
         bestfit1 = io.read_results(bf1_fn, imfit_results[final_step1]['functions'])
         bestfit2 = io.read_results(bf2_fn, imfit_results[final_step2]['functions'])
 
-        return bestfit1, bestfit2, bf1_fn.split('/')[-1], bf2_fn.split('/')[-1], mag1, mag2, color, imfit_results[final_step1]['model_fn'], imfit_results[final_step1]['resid_fn'], imfit_results[final_step1]['functions'], imfit_results[final_step2]['model_fn'], imfit_results[final_step2]['resid_fn'], src_sbfmag1, src_color1, src_color2
+        return bestfit1, bestfit2, bf1_fn.split('/')[-1], bf2_fn.split('/')[-1], mag1, mag2, color, imfit_results[final_step1]['model_fn'], imfit_results[final_step1]['resid_fn'], imfit_results[final_step1]['functions'], imfit_results[final_step2]['model_fn'], imfit_results[final_step2]['resid_fn'], src_sbfmag1, src_color1, src_color2, orig_color
 
 
     return

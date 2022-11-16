@@ -2,6 +2,7 @@ from lbcred import tools, interactive, image
 import numpy as np
 import os, time, shutil, warnings
 from lbcred.log import logger
+from shutil import copyfile
 
 
 affirmative = ['y','Y','yes','Yes']
@@ -16,7 +17,7 @@ def reduce(config_filename, options = {}):
     initial_config = tools.initialize_config(config_filename, options) # Overwrite anything in the config file that was supplied via the command line
     tools.setup_logger(initial_config['logger_level'], log_fn=initial_config['log_to_file'])
     # Save copy of config to output directory
-    copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1]))
+    copyfile(config_filename,os.path.join(initial_config['out_dir'],config_filename.split('/')[-1]))
 
     # Do directory stuff
     config, dir_overwritten = interactive.initialize_directories(initial_config)
@@ -58,15 +59,13 @@ def reduce(config_filename, options = {}):
         tools.stack(config, image_info)
 
     # Ask for final notes (if check_output is not 0)
+    end_notes = ''
     if config['check_output']:
         # TEMP:
-        end_notes = ''
         '''
         response = input('Are there any other notes you would like to add to the output textfile? [y/n]: ')
         if response in affirmative:
             end_notes = input('Notes to add: ')
-        else:
-            end_notes = ''
         '''
     # Make textfile
     tools.textfile(config, end_notes, dir_overwritten)

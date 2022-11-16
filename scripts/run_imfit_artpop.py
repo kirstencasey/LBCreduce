@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=str, help='specify output directory name/path; default is located in the same directory as image_dir with name \'lbcreduce_modeling_<date>_<time>\'')
     parser.add_argument('-ext','--extension', type=int, help='extension of FITS file data to be used')
     args = parser.parse_args()
-
+    '''
     options = {
         'image_dir' : args.image_dir,
         'ext' : args.extension,
@@ -22,5 +22,6 @@ if __name__ == '__main__':
         'overwrite' : args.overwrite,
         'out_dir' : args.out_dir
     }
-
+    '''
+    options = {}
     lbcred.modeling_imfit(config_filename=args.config, options=options)

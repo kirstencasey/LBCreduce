@@ -93,8 +93,37 @@ def run_makeimage(bestfit_fn, psf_fn=None, ref_fn=None, output_root=None, out_fn
 
 def organize_initial_params(config, model, fixedsersic=None, color=None):
 
-
-    if model == 'Sersic' and fixedsersic == None:
+    if model == 'TiltedSkyPlane':
+        I_0 = [config['tilted_plane_params']['I_0_guess'],config['tilted_plane_params']['I_0_min'],config['tilted_plane_params']['I_0_max']]
+        m_x = [config['tilted_plane_params']['m_x_guess'],config['tilted_plane_params']['m_x_min'],config['tilted_plane_params']['m_x_max']]
+        m_y = [config['tilted_plane_params']['m_y_guess'],config['tilted_plane_params']['m_y_min'],config['tilted_plane_params']['m_y_max']]
+        init_params = dict(I_0=I_0, m_x=m_x, m_y=m_y)
+        '''
+        center = None
+        dcent = None
+        '''
+        if config['inject_artpop_model']:
+            center = [config['xpos_inject'],config['ypos_inject']]
+            dcent=1000
+        else:
+            center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
+            dcent=1000
+    
+    elif model == 'FlatSky':
+        I_sky = [config['flat_sky_params']['I_sky_guess'],config['flat_sky_params']['I_sky_min'],config['flat_sky_params']['I_sky_max']]
+        init_params = dict(I_sky=I_sky)
+        '''
+        center = None
+        dcent = None
+        '''
+        if config['inject_artpop_model']:
+            center = [config['xpos_inject'],config['ypos_inject']]
+            dcent=1000
+        else:
+            center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
+            dcent=1000
+                
+    elif model == 'Sersic' and fixedsersic == None:
         if config['sersic_params']['fix_PA']: PA = [config['sersic_params']['PA_guess'], 'fixed']
         else: PA = [config['sersic_params']['PA_guess'], config['sersic_params']['PA_min'], config['sersic_params']['PA_max']]
         if config['sersic_params']['fix_n']: n = [config['sersic_params']['n_guess'], 'fixed']
@@ -120,7 +149,7 @@ def organize_initial_params(config, model, fixedsersic=None, color=None):
         init_params = dict(PA=PA, n=n, ell=ell,r_e=r_e,I_e=I_e)
         dcent = config['sersic_params']['pos_err']
 
-    elif fixedsersic is not None:
+    elif model == 'Sersic' and fixedsersic != None:
         fixedparams = fixedsersic.results
         for i in range(len(fixedparams)-1):
 
@@ -136,36 +165,6 @@ def organize_initial_params(config, model, fixedsersic=None, color=None):
                 dcent = 0
                 continue
 
-    elif model == 'TiltedSkyPlane':
-        I_0 = [config['tilted_plane_params']['I_0_guess'],config['tilted_plane_params']['I_0_min'],config['tilted_plane_params']['I_0_max']]
-        m_x = [config['tilted_plane_params']['m_x_guess'],config['tilted_plane_params']['m_x_min'],config['tilted_plane_params']['m_x_max']]
-        m_y = [config['tilted_plane_params']['m_y_guess'],config['tilted_plane_params']['m_y_min'],config['tilted_plane_params']['m_y_max']]
-        init_params = dict(I_0=I_0, m_x=m_x, m_y=m_y)
-        '''
-        center = None
-        dcent = None
-        '''
-        if config['inject_artpop_model']:
-            center = [config['xpos_inject'],config['ypos_inject']]
-            dcent=1000
-        else:
-            center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
-            dcent=1000
-
-    elif model == 'FlatSky':
-        I_sky = [config['flat_sky_params']['I_sky_guess'],config['flat_sky_params']['I_sky_min'],config['flat_sky_params']['I_sky_max']]
-        init_params = dict(I_sky=I_sky)
-        '''
-        center = None
-        dcent = None
-        '''
-        if config['inject_artpop_model']:
-            center = [config['xpos_inject'],config['ypos_inject']]
-            dcent=1000
-        else:
-            center = [config['sersic_params']['xpos_guess'],config['sersic_params']['ypos_guess']]
-            dcent=1000
-
     elif model == 'Gaussian':
         PA = [config['gauss_params']['PA_guess'],config['gauss_params']['PA_min'],config['gauss_params']['PA_max']]
         ell = [config['gauss_params']['ell_guess'],config['gauss_params']['ell_min'],config['gauss_params']['ell_max']]
@@ -178,7 +177,7 @@ def organize_initial_params(config, model, fixedsersic=None, color=None):
     return init_params, center, dcent
 
 def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options='', fixedsersic=None, viz=False, iter=None, fn_stub=None, alt_out_dir=None, alt_image_dir=None, glob_select=None):
-
+    print(config['image_dir'])
     psf_fn = os.path.join(config['image_dir'],color_specific_info['psf'])
     color = color_specific_info['name']
     if alt_out_dir is None: out_dir = config['out_dir']
@@ -271,7 +270,7 @@ def summarize_results(config, sersic_params1, sersic_params2=None):
 
         color_corrected = mag2_corrected - mag1_corrected
 
-        return mag1_corrected , mag2_corrected , color_corrected
+        return mag1_corrected , mag2_corrected , color_corrected, color
 
     return sersic1.m_tot - config['color1']['extinction']
 
@@ -291,7 +290,7 @@ def determine_imfit_comps(imfit_config):
 
     return comp1,comp2
 
-def subtract_bright_star(filename, config, color, glob_select, use_cutout=False, cutout_size=(2001,2001)):
+def subtract_bright_star(filename, config, color, glob_select, use_cutout=False, cutout_size=(2001,2001), force_out_dir=False, run_id=''):
 
     # Read in imfit_config and csv
     with open(config['imfit_config'], 'r') as config_imfit:
@@ -302,16 +301,17 @@ def subtract_bright_star(filename, config, color, glob_select, use_cutout=False,
         custom_mask_details = custom_mask_details[np.where(custom_mask_details['filename'] == filename.split('/')[-1].replace(glob_select,config['glob_select']))]
 
     # Deal with directories, files, etc. - assumes flat variance image for now
-    mkdir_if_needed(os.path.join(config['out_dir'],'star_subtracted'))
+    mkdir_if_needed(os.path.join(config['out_dir'],'star_subtracted'+run_id))
     file = fits.open(filename)[0]
     if use_cutout:
         var = fits.PrimaryHDU(np.zeros((cutout_size))+1)
     else:
         var = fits.PrimaryHDU(np.zeros((file.data.shape))+1)
-    var.writeto(os.path.join(config['out_dir'],'star_subtracted',imfit_config['variance_image']),overwrite=True)
+    var.writeto(os.path.join(config['out_dir'],'star_subtracted'+run_id,imfit_config['variance_image']),overwrite=True)
 
     # Create mask
-    mask_fn = os.path.join(config['out_dir'],'star_subtracted', filename.replace(config['glob_select'],'mask_' + config['glob_select']))
+    mask_fn = os.path.join(config['out_dir'],'star_subtracted'+run_id, filename.replace(config['glob_select'],'mask_' + config['glob_select']))
+    if force_out_dir: mask_fn = os.path.join(config['out_dir'],'star_subtracted'+run_id, filename.split('/')[-1].replace(config['glob_select'],'mask_' + config['glob_select']))
     mask_kws = dict(out_fn=mask_fn, gal_pos=(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]), **imfit_config['masking_imfit_star'])
     mask = pymfit.make_mask(filename, **mask_kws)
     mask[np.where(file.data==0.)]=1
@@ -350,14 +350,17 @@ def subtract_bright_star(filename, config, color, glob_select, use_cutout=False,
     # Create cutouts for imfit
     imfit_file = filename
     if use_cutout:
-        imfit_file = misc.make_cutout(filename,(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]),cutout_size,cutout_fn=filename.replace(config['glob_select'],'cutout_'+config['glob_select']),force_shape=True)
+        if force_out_dir:
+            imfit_file = misc.make_cutout(filename,(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]),cutout_size,cutout_fn=os.path.join(config['out_dir'],'star_subtracted'+run_id,filename.split('/')[-1].replace(config['glob_select'],'cutout_'+config['glob_select'])),force_shape=True)
+        else: imfit_file = misc.make_cutout(filename,(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]),cutout_size,cutout_fn=filename.replace(config['glob_select'],'cutout_'+config['glob_select']),force_shape=True)
         mask_file = misc.make_cutout(mask_fn,(custom_mask_details['x_star'][0],custom_mask_details['y_star'][0]),cutout_size,cutout_fn=mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select']),force_shape=True)
         # Modify mask if necessary
         mask_file = fits.open(mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select']))
         mask_file[0].data[np.where(imfit_file.data==0)] = 1
         mask_file.writeto(mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select']), overwrite=True)
         # Save cutout filenames
-        imfit_file = filename.replace(config['glob_select'],'cutout_'+config['glob_select'])
+        if force_out_dir: imfit_file = filename.split('/')[-1].replace(config['glob_select'],'cutout_'+config['glob_select'])
+        else: imfit_file = filename.replace(config['glob_select'],'cutout_'+config['glob_select'])
         mask_fn = mask_fn.replace(config['glob_select'],'cutout_'+config['glob_select'])
 
 
@@ -379,14 +382,14 @@ def subtract_bright_star(filename, config, color, glob_select, use_cutout=False,
                 imfit_config['gauss_params']['xpos_guess'] = custom_mask_details['x_star'][0]
                 imfit_config['gauss_params']['ypos_guess'] = custom_mask_details['y_star'][0]
         # Run imfit
-        results, model_fn, resid_fn, bf_fn = run_imfit(imfit_file, mask_fn, color_options, imfit_config, model_funcs=funcs, options=options, viz=True, alt_out_dir=os.path.join(config['out_dir'],'star_subtracted'), alt_image_dir=os.path.join(config['out_dir'],'star_subtracted'),glob_select=config['glob_select'])
+        results, model_fn, resid_fn, bf_fn = run_imfit(imfit_file, mask_fn, color_options, imfit_config, model_funcs=funcs, options=options, viz=True, alt_out_dir=os.path.join(config['out_dir'],'star_subtracted'+run_id), alt_image_dir=os.path.join(config['out_dir'],'star_subtracted'+run_id),glob_select=config['glob_select'])
 
     # Reconstruct model for whole image
     if use_cutout:
         # Change positions in bestfit file
         new_lines=[]
         funcs = []
-        with open(os.path.join(config['out_dir'],'star_subtracted',bf_fn), 'r') as bf:
+        with open(os.path.join(config['out_dir'],'star_subtracted'+run_id,bf_fn), 'r') as bf:
 
             for line in bf.readlines():
                 if line[0] == 'X':
@@ -412,17 +415,23 @@ def subtract_bright_star(filename, config, color, glob_select, use_cutout=False,
 
                 elif 'sky' not in line: new_lines.append(line)
 
-        os.rename(os.path.join(config['out_dir'],'star_subtracted',bf_fn),os.path.join(config['out_dir'],'star_subtracted',bf_fn.replace('.txt','_cutoutpositions.txt')))
+        os.rename(os.path.join(config['out_dir'],'star_subtracted'+run_id,bf_fn),os.path.join(config['out_dir'],'star_subtracted'+run_id,bf_fn.replace('.txt','_cutoutpositions.txt')))
 
-        with open(os.path.join(config['out_dir'],'star_subtracted',bf_fn), 'w') as f:
+        with open(os.path.join(config['out_dir'],'star_subtracted'+run_id,bf_fn), 'w') as f:
             f.writelines(new_lines)
 
         # Run makeimage to recreate model for whole image
-        run_makeimage(os.path.join(config['out_dir'],'star_subtracted',bf_fn) , psf_fn=os.path.join(config['out_dir'],config[f'psf_fn_{color}']), ref_fn=filename, output_root=None, out_fn=filename.replace('.fits','_model.fits'))
+        if force_out_dir: run_makeimage(os.path.join(config['out_dir'],'star_subtracted'+run_id,bf_fn), psf_fn=os.path.join(config['out_dir'],config[f'psf_fn_{color}']), ref_fn=filename, output_root=None, out_fn=os.path.join(config['out_dir'],'star_subtracted'+run_id,filename.split('/')[-1].replace('.fits','_model.fits')))
+        else: run_makeimage(os.path.join(config['out_dir'],'star_subtracted'+run_id,bf_fn) , psf_fn=os.path.join(config['out_dir'],config[f'psf_fn_{color}']), ref_fn=filename, output_root=None, out_fn=filename.replace('.fits','_model.fits'))
 
         # Subtract model from original image, save files
-        file.data = file.data - fits.getdata(filename.replace('.fits','_model.fits'))
-        file.writeto(filename,overwrite=True)
+        if force_out_dir: 
+            file.data = file.data - fits.getdata(os.path.join(config['out_dir'],'star_subtracted'+run_id,filename.split('/')[-1].replace('.fits','_model.fits')))
+            print('Final star-subtracted image: ', os.path.join(config['out_dir'],'star_subtracted'+run_id,filename.split('/')[-1]).replace('.fits','_starsub.fits'))
+            file.writeto(os.path.join(config['out_dir'],'star_subtracted'+run_id,filename.split('/')[-1].replace('.fits','_starsub.fits')),overwrite=True)
+        else: 
+            file.data = file.data - fits.getdata(filename.replace('.fits','_model.fits'))
+            file.writeto(filename,overwrite=True)
 
     return results, model_fn, resid_fn, bf_fn
 

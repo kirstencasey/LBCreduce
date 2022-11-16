@@ -20,11 +20,11 @@ def make_cutout(original_img_fn, position, shape, ext = 0, cutout_fn=None):
     img.close()
     return cutout
 
-imfit_config = '/Users/kirstencasey/projects/LBCreduce/modeling-config_imfit.yml'
-sbf_config = '/Users/kirstencasey/projects/LBCreduce/modeling-config_sbf.yml'
-register_config = '/Users/kirstencasey/projects/LBCreduce/register_calibration-config.yml'
+imfit_config = '/users/PCON0003/osu10713/projects/LBCreduce/modeling-config_imfit.yml'
+sbf_config = '/users/PCON0003/osu10713/projects/LBCreduce/modeling-config_sbf.yml'
+register_config = '/users/PCON0003/osu10713/projects/LBCreduce/register_calibration-config.yml'
 use_premade_masks =  True
-num_artpop_models_to_test = 2 #0 # If 0 uses all models in directory; if this is 1 then just grabs the artpop model that's specified in the relevant config file
+num_artpop_models_to_test = 5 #0 # If 0 uses all models in directory; if this is 1 then just grabs the artpop model that's specified in the relevant config file
 construct_artpop = False
 select_premade_artpops = True
 inject_artpop_in_registration_step = False # If this is False and select_premade_artpops is True, injects models in imfit step
@@ -177,7 +177,7 @@ def run_registration_calibration_steps(reg_config, im_config, iter, back_model, 
             for mask in all_masks:
                 shutil.copyfile(mask,os.path.join(im_config['out_dir'],mask.split('/')[-1]))
 
-    return reg_config, im_config, out_fn_r, out_fn_b
+    return reg_config, im_config, out_fn_r, out_fn_b, os.path.join(reg_config['image_dir'],'sci',in_fn_r)
 
 
 #####################################################################################
@@ -192,7 +192,7 @@ for iter in range(num_positions):
 
         if not inject_artpop_in_registration_step:
 
-            reg_config, im_config, out_fn_r, out_fn_b  = run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run)
+            reg_config, im_config, out_fn_r, out_fn_b, stack_fn_r  = run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run)
             first_run = False
 
         for model_num in range(num_artpop_models_to_test):
@@ -212,7 +212,7 @@ for iter in range(num_positions):
 
             if register_calibrate_ims and inject_artpop_in_registration_step:
 
-                reg_config, im_config  = run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run, artpop_ids, inject_artpop_in_registration_step=inject_artpop_in_registration_step)
+                reg_config, im_config, _, _, stack_fn_r = run_registration_calibration_steps(reg_config, im_config, iter, back_model, first_run, artpop_ids, inject_artpop_in_registration_step=inject_artpop_in_registration_step)
                 first_run = False
 
             elif register_calibrate_ims:
@@ -268,6 +268,7 @@ for iter in range(num_positions):
                 sb_config['color'] = color
                 sb_config['resid_fn'] = resid1_fn
                 sb_config['model_summary_fn'] = bestfit1_fn
+                sb_config['stack_fn'] = stack_fn_r
 
                 print('Running sbf')
                 run_id = f'{back_model}{iter+1}_'
@@ -292,11 +293,12 @@ for iter in range(num_positions):
             true_mags_b.append(float(artpop_hdr['Bessell_B_mag']))
             true_sbfmags.append(float(artpop_hdr['Bessell_R_sbfmag']))
 
-arrs = [measured_mags_r,measured_mags_b,measured_sbfmags,measured_dists,measured_radii,measured_ellip,measured_n,measured_pa,measured_xpos,measured_ypos,measured_Ier,measured_Ieb,true_mags_r,true_mags_b,true_sbfmags,true_dists,true_radii,true_ellip,true_n,true_pa,position_nums,artpop_ids,bckgnd_models]
-params = ['measured_mags_r','measured_mags_b','measured_sbfmags','measured_dists','measured_radii','measured_ellip','measured_n','measured_pa','measured_xpos','measured_ypos','measured_Ier','measured_Ieb','true_mags_r','true_mags_b','true_sbfmags','true_dists','true_radii','true_ellip','true_n','true_pa','position_ids','artpop_ids','background_models']
-
-for param, arr in zip(params, arrs):
-    nparr = np.asarray(arr)
-    file = open(os.path.join(im_config['out_dir'],f'background_subtraction_test_results_{param}'), "wb")
-    np.save(file, nparr)
-    file.close
+if run_imfit: 
+    arrs = [measured_mags_r,measured_mags_b,measured_sbfmags,measured_dists,measured_radii,measured_ellip,measured_n,measured_pa,measured_xpos,measured_ypos,measured_Ier,measured_Ieb,true_mags_r,true_mags_b,true_sbfmags,true_dists,true_radii,true_ellip,true_n,true_pa,position_nums,artpop_ids,bckgnd_models]
+    params = ['measured_mags_r','measured_mags_b','measured_sbfmags','measured_dists','measured_radii','measured_ellip','measured_n','measured_pa','measured_xpos','measured_ypos','measured_Ier','measured_Ieb','true_mags_r','true_mags_b','true_sbfmags','true_dists','true_radii','true_ellip','true_n','true_pa','position_ids','artpop_ids','background_models']
+    
+    for param, arr in zip(params, arrs):
+        nparr = np.asarray(arr)
+        file = open(os.path.join(im_config['out_dir'],f'background_subtraction_test_results_{param}'), "wb")
+        np.save(file, nparr)
+        file.close

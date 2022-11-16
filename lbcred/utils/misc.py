@@ -135,7 +135,7 @@ def list_of_floats(str):
     """
     # Get list of strings
     str.replace(' ', '')
-    if str is '': return []
+    if str == '': return []
 
     lst = list_of_strings(str)
     ls_floats = []
@@ -304,20 +304,31 @@ def save_image_odd_shape(img_fn,ext=0):
 
 
 def make_cutout(original_img_fn, position, shape, ext=0, cutout_fn=None, force_shape=False, force_shape_filler=0.):
+    '''
+    position and shape should be in the FITS format (x,y) from image
+    shape needs to be a square (x=y) -> otherwise need to spend more time debugging.
+    '''
+
     img = fits.open(original_img_fn)
     cutout = Cutout2D(img[ext].data, position, shape)
 
     # Check cutout shape
     # vstack if necessary
     if force_shape:
-        if cutout.data.shape[0] != shape[0]:
-            zeros = np.zeros((shape[0]-cutout.data.shape[0],cutout.data.shape[1]))+force_shape_filler
-            cutout.data = np.vstack((cutout.data,zeros))
+        if cutout.data.shape[0] != shape[1]:
+            zeros = np.zeros((shape[1]-cutout.data.shape[0],cutout.data.shape[1]))+force_shape_filler
+            if position[1] + (shape[1]/2) > img[ext].data.shape[0]:
+                cutout.data = np.vstack((cutout.data,zeros))
+            elif position[1] - (shape[1]/2) < 0:
+                cutout.data = np.vstack((zeros,cutout.data))
 
         # hstack if necessary
-        if cutout.data.shape[1] != shape[1]:
-            zeros = np.zeros((cutout.data.shape[0],shape[1]-cutout.data.shape[1]))+force_shape_filler
-            cutout.data = np.hstack((zeros,cutout.data))
+        if cutout.data.shape[1] != shape[0]:
+            zeros = np.zeros((cutout.data.shape[0],shape[0]-cutout.data.shape[1]))+force_shape_filler
+            if position[0] + (shape[0]/2) > img[ext].data.shape[1]:
+                cutout.data = np.hstack((cutout.data,zeros))
+            elif position[0] - (shape[0]/2) < 0:
+                cutout.data = np.hstack((zeros,cutout.data))
 
     img[ext].data = cutout.data
     if cutout_fn is not None:
@@ -349,7 +360,7 @@ def filter_dict(dictionary, desired_param=None, conditions={}, condition_type={}
     condition_type : dict of str ('less than', 'greater than'), used when evaluating conditions, if none provided assumes 'equal to'
     '''
 
-    if len(conditions) is 0 and desired_param is not None:
+    if len(conditions) == 0 and desired_param is not None:
         if return_mask:
             return dictionary[desired_param], None
         else: return dictionary[desired_param]
@@ -357,7 +368,7 @@ def filter_dict(dictionary, desired_param=None, conditions={}, condition_type={}
     mask = np.array([])
     for key,value in conditions.items():
         if len(mask)==0:
-            if len(condition_type) is 0:
+            if len(condition_type) == 0:
                 mask = dictionary[key]==value
             elif condition_type[key] == 'less than':
                 mask = dictionary[key]<value
@@ -365,7 +376,7 @@ def filter_dict(dictionary, desired_param=None, conditions={}, condition_type={}
                 mask = dictionary[key]>value
 
         else:
-            if len(condition_type) is 0:
+            if len(condition_type) == 0:
                 mask &= dictionary[key]==value
             elif condition_type[key] == 'less than':
                 mask &= dictionary[key]<value
@@ -391,11 +402,11 @@ def merge_dicts(dict_list):
 
     num_dicts = len(dict_list)
 
-    if num_dicts is 1 : return dict_list[0]
+    if num_dicts == 1 : return dict_list[0]
     result={}
 
     for dict_idx in range(num_dicts):
-        if dict_idx is 0:
+        if dict_idx == 0:
             for key,arr1 in dict_list[dict_idx].items():
                 arr2 = dict_list[dict_idx+1][key]
                 new_arr = np.append(arr1,arr2)
