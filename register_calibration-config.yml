@@ -26,6 +26,8 @@ stack_images : True
 subtract_background : True
 inject_artpop : False
 construct_artpop : False
+interp_type : 'nearest' # Interpolation kernel for resampling: lanczos or nearest
+stack_mask_std : 3.0 # Pixels in individual exposures with values outside this std from the median image will be masked during stacking
 
 center_ra : 137.5605
 center_dec : 73.4394
@@ -38,7 +40,7 @@ chip_num : 2 # Can only handle one chip at a time right now...
 # Model and subtract very bright stars:
 model_subtract_star : False # Set imfit parameters in imfit_config
 imfit_config : '/users/PCON0003/osu10713/projects/LBCreduce/modeling-config_imfit.yml'
-custom_mask_csv_fn : '/users/PCON0003/osu10713/M81blob/manual_star_subtraction_masks.csv'
+custom_mask_csv_fn : '/users/PCON0003/osu10713/M81blob/manual_star_subtraction_masks.csv' # for star modeling
 
 ############################### Background Subtraction Options ###############################
 background_model : 'polynomial' # Options: 'SEsky', 'median', 'clipped_mean', 'plane', 'polynomial'
@@ -46,7 +48,8 @@ save_background_models : True
 generate_image_mask : True
 image_mask_thresh : 5 # This uses mad_std to determine masked pixels - if this is too low the mask will fail (look for pixel stack overflow warning)
 grow_mask_sig :  # Gaussian sigma used to grow background mask; Do not specify if you don't want the mask grown. If this is too low the mask will fail (look for pixel stack overflow warning)
-use_custom_mask : True
+use_custom_mask : True # If True, specify custom_background_mask
+custom_background_mask : '/users/PCON0003/osu10713/M81blob/manual_star_subtraction_masks.csv'
 
 SEsky :
   box_size : 800
@@ -70,13 +73,17 @@ polynomial :
 chosen_aper : 5 # pixel radius
 texp_cali : 30.262 # seconds
 texp_sci : 300.281 # seconds
+texp_buffer : 20. # seconds
 gain : 1.75
 readnoise : 12.
 saturation_limit : 40000 # ADU/pixel
-check_aperture_plots : False
+check_aperture_plots : True
+reject_calib_outliers : True
+reject_calib_outliers_std : 4
 
 flux_apers : '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30' # These determine the aperture sizes used to calculate star fluxes, pixel units; separate by comma
 allowed_sep : 0.75 # arcseconds, separation for matching stars in images to stars in reference catalog
+star_cutout_size : 51 # length of one side of the square cutout, in pixels; default is 51 pixels
 
 # Cut objects near areas where there are known issues in the image; ra_cut and dec_cut should be the same length (comma deliminated)
 ra_cut : '137.7533912,137.7334531,137.400731,137.3802136'

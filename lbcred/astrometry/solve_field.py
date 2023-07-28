@@ -72,7 +72,7 @@ def solve_field(path_or_pixels, header=None, run_label=None, clean=True,
                 tmp_path='/tmp', overwrite=False, sip_order=3, 
                 max_num_objects=3000, downsample=3, target_radec=None, 
                 search_radius=None, options=None, index_path=None, 
-                config_fn=None, identifier='serialno'):
+                config_fn=None, identifier='serialno',remove_id_spaces=True):
     """
     Solve field using astrometry.net.
 
@@ -134,6 +134,7 @@ def solve_field(path_or_pixels, header=None, run_label=None, clean=True,
 
     if identifier is not None:
         id_name = header[identifier].strip()
+        if remove_id_spaces: id_name = id_name.replace(' ','')
     else:
         id_name = 'Unknown'
 

@@ -162,10 +162,29 @@ def make_region_files(cat, ftype, out_dir, coordtype='physical', plot_panstarrs 
         file.close()
 
     return cat, panstarrs_cat
+    
+def reject_outliers(data, m=4.):
+    d = np.abs(data - np.median(data))
+    mdev = np.median(d)
+    s = d / (mdev if mdev else 1.)
+    return data[s < m],s < m
 
-def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name_out,aper_radius,aper_corrections_r,aper_corrections_b,aper_correction_files_r,aper_correction_files_b,gain,texp,saturation_limit,model='linear',degree=None,use_SE_fluxes=False):
+def combine_masks(image_mask, outlier_mask):
+    i=0
+    full_mask = []
+    for star in image_mask:
+        if star: 
+            if not outlier_mask[i]:
+                full_mask.append(False)
+            else: full_mask.append(True)
+            i+=1
+        else: full_mask.append(True)
+    
+    return np.asarray(full_mask)
 
-    size = (51,51)
+def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name_out,aper_radius,aper_corrections_r,aper_corrections_b,aper_correction_files_r,aper_correction_files_b,gain,texp,saturation_limit,model='linear',degree=None,use_SE_fluxes=False,size=51,save_fn='compare_instrumental_and_catalog_mags.png',remove_outliers=False,remove_outliers_std=3.0):
+
+    size = (size,size)
     aper_sums_r = []
     aper_sums_b = []
     aper_mags_r = []
@@ -179,6 +198,7 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
     for idx in range(len(cat_p)):
         file_r = cat_r[idx]['filename']
         file_b = cat_b[idx]['filename']
+
         if len(aper_corrections_r) == 1:
             exp_median_r = aper_corrections_r[0]
         if len(aper_corrections_b) == 1:
@@ -194,14 +214,14 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
             im_hdul_b = fits.open(os.path.join(file_dir,file_b),ignore_blank=True)
             position_b = (cat_b[idx]['X_IMAGE']-1,cat_b[idx]['Y_IMAGE']-1)
             cutout_b = Cutout2D(im_hdul_b[0].data, position_b, size)
-
+            '''
             if np.sum(cutout_r.data >= saturation_limit) != 0:
                 mask_r.append(False)
             else: mask_r.append(True)
             if np.sum(cutout_b.data >= saturation_limit) != 0:
                 mask_b.append(False)
             else: mask_b.append(True)
-
+            '''
             x_corrected_r = position_r[0]-cutout_r.origin_original[0]
             y_corrected_r = position_r[1]-cutout_r.origin_original[1]
             position_corrected_r = (x_corrected_r,y_corrected_r)
@@ -234,7 +254,14 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
             corrected_flux_b = cat_b[idx][f'FLUX_APER_{aper_radius-1}']
             corrected_fluxes_r.append(corrected_flux_r)
             corrected_fluxes_b.append(corrected_flux_b)
-
+        
+        # Try this here instead, also mask for negative fluxes
+        if np.sum(cutout_r.data >= saturation_limit) != 0 or corrected_flux_r < 0.:
+            mask_r.append(False)
+        else: mask_r.append(True)
+        if np.sum(cutout_b.data >= saturation_limit) != 0 or corrected_flux_b < 0.:
+            mask_b.append(False)
+        else: mask_b.append(True)
 
         # Calculate magnitude, get panstarrs magnitude
         aper_mags_r.append(-2.5 * np.log10(corrected_flux_r*gain/texp))
@@ -257,12 +284,14 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
         line_init = models.Linear1D()
     elif model == 'polynomial':
         line_init = models.Polynomial1D(degree=degree,domain=(0,3))
-
+    
+    plt.clf()
     fig,ax = plt.subplots(2,2,figsize=(15,15)) 
     files_r = np.asarray(np.unique(cat_r['filename']))
     files_b = []
     zp_arr_r = []
     zp_arr_b = []
+    
     for im_r in files_r:
 
         #label = im_r.split('.')[2].split('-')[0]
@@ -279,6 +308,34 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
 
         fitted_line_inst_b = fit(line_init, x_inst, y_b)
         fitted_line_inst_r = fit(line_init, x_inst, y_r)
+        
+        if remove_outliers:
+            # Calculate residuals
+            im_resid_r = (im_cat_r['aper_corrected_mag'] - fitted_line_inst_r(x_inst)) - im_cat_p['R-BESSEL_linear']
+            im_resid_b = (im_cat_b['aper_corrected_mag'] - fitted_line_inst_b(x_inst)) - im_cat_p['B-BESSEL_linear']
+        
+            # Identify outliers in the residuals
+            _, keep_idxs_r = reject_outliers(im_resid_r,remove_outliers_std)
+            _, keep_idxs_b = reject_outliers(im_resid_b,remove_outliers_std)
+            keep_idxs = ~(~keep_idxs_r | ~keep_idxs_b)
+            
+            # Remove them from the relevant catalogs
+            full_mask = combine_masks(mask,keep_idxs)
+            im_cat_r = im_cat_r[keep_idxs]
+            im_cat_b = im_cat_b[keep_idxs]
+            im_cat_p = im_cat_p[keep_idxs]
+            cat_r = cat_r[full_mask]
+            cat_b = cat_b[full_mask]
+            cat_p = cat_p[full_mask]
+            
+            # Re-fit the data
+            x_p = im_cat_p['B-BESSEL_linear'] - im_cat_p['R-BESSEL_linear']
+            x_inst = im_cat_b['aper_corrected_mag'] - im_cat_r['aper_corrected_mag']
+            y_r = im_cat_r['aper_corrected_mag'] - im_cat_p['R-BESSEL_linear']
+            y_b = im_cat_b['aper_corrected_mag'] - im_cat_p['B-BESSEL_linear']
+    
+            fitted_line_inst_b = fit(line_init, x_inst, y_b)
+            fitted_line_inst_r = fit(line_init, x_inst, y_r)
 
         zp_arr_r.append(fitted_line_inst_r(0.))
         zp_arr_b.append(fitted_line_inst_b(0.))
@@ -328,7 +385,7 @@ def apply_aper_color_corrections(file_dir,cat_r,cat_b,cat_p,mag_name_in,mag_name
     ax[1][1].set_xlabel(f'Instrumental B-R')
     ax[1][1].set_ylabel(f'Instrumental R - Pan-STARRS R')
     ax[1][1].plot(x_inst, fitted_line_inst_r(x_inst), 'k-', label='Fitted Model')
-    plt.savefig(os.path.join(file_dir,'diagnostic-plots','compare_instrumental_and_catalog_mags.png'))
+    plt.savefig(os.path.join(file_dir,'diagnostic-plots',save_fn))
 
     mag_color_corrected_pan_r = cat_r['aper_corrected_mag'] - fitted_line_pan_r(x_p)
     mag_color_corrected_pan_b = cat_b['aper_corrected_mag'] - fitted_line_pan_b(x_p)
@@ -348,18 +405,19 @@ def plot_residuals(cat_r,cat_b,cat_p,mag_name,save_figs=False,fig_name=None):#,s
         num_plots = len(files_r)+1
         fig,ax = plt.subplots(num_plots,2,figsize=(15,num_plots*8))
     ''' # Not here
-
+    plt.clf()
     fig,ax = plt.subplots(2,2,figsize=(15,15))
     x = cat_p['B-BESSEL_linear']
     y = cat_b[mag_name+'_pan'] - cat_p['B-BESSEL_linear']
     y_rms = np.sqrt(np.mean(np.asarray(y)**2))
     ylim = max([abs(min(y)),abs(max(y))])
+    #text(0.5, 0.5, 'matplotlib', horizontalalignment='center',verticalalignment='center', transform=ax.transAxes
 
     ax[0][0].scatter(x,y,color='darkblue')
     ax[0][0].plot(np.arange(30),np.zeros(30),linestyle='dashed', color='black')
     ax[0][0].set_xlim(min(x)-0.5,max(x)+0.5)
     ax[0][0].set_ylim(-ylim-0.1,ylim+0.1)
-    ax[0][0].text(19,-0.3,f'rms: {round(y_rms,4)}',fontsize=20)
+    ax[0][0].text(0.1,0.1,f'rms: {round(y_rms,4)}',fontsize=20,horizontalalignment='left',verticalalignment='bottom', transform=ax[0][0].transAxes)
     ax[0][0].set_xlabel('Pan-STARRS B (mag)')
     ax[0][0].set_ylabel('Calibrated B mag - Pan-STARRS B mag')
     ax[0][0].title.set_text('Residuals Using Pan-STARRS Colors for Color Terms')
@@ -371,38 +429,43 @@ def plot_residuals(cat_r,cat_b,cat_p,mag_name,save_figs=False,fig_name=None):#,s
     ax[0][1].plot(np.arange(30),np.zeros(30),linestyle='dashed', color='black')
     ax[0][1].set_xlim(min(x)-0.5,max(x)+0.5)
     ax[0][1].set_ylim(-ylim-0.1,ylim+0.1)
-    ax[0][1].text(17.5,-0.3,f'rms: {round(y_rms,4)}',fontsize=20)
+    ax[0][1].text(0.1,0.1,f'rms: {round(y_rms,4)}',fontsize=20,horizontalalignment='left',verticalalignment='bottom', transform=ax[0][1].transAxes)
     ax[0][1].set_xlabel('Pan-STARRS R (mag)')
     ax[0][1].set_ylabel('Calibrated R mag - Pan-STARRS R mag')
     ax[0][1].title.set_text('Residuals Using Pan-STARRS Colors for Color Terms')
 
     x = cat_p['B-BESSEL_linear']
     y = cat_b[mag_name+'_inst'] - cat_p['B-BESSEL_linear']
+    resid_b = y
     y_rms = np.sqrt(np.mean(np.asarray(y)**2))
+
     ax[1][0].scatter(x,y,color='darkblue')
     ax[1][0].plot(np.arange(30),np.zeros(30),linestyle='dashed', color='black')
     ax[1][0].set_xlim(min(x)-0.5,max(x)+0.5)
     ax[1][0].set_ylim(-ylim-0.1,ylim+0.1)
-    ax[1][0].text(19,-0.3,f'rms: {round(y_rms,4)}',fontsize=20)
+    ax[1][0].text(0.1,0.1,f'rms: {round(y_rms,4)}',fontsize=20,horizontalalignment='left',verticalalignment='bottom', transform=ax[1][0].transAxes)
     ax[1][0].set_xlabel('Pan-STARRS B (mag)')
     ax[1][0].set_ylabel('Calibrated B mag - Pan-STARRS B mag')
     ax[1][0].title.set_text('Residuals Using Calibrated Inst Colors for Color Terms')
 
     x = cat_p['R-BESSEL_linear']
     y = cat_r[mag_name+'_inst'] - cat_p['R-BESSEL_linear']
+    resid_r = y
     y_rms = np.sqrt(np.mean(np.asarray(y)**2))
+
     ax[1][1].scatter(x,y,color='darkred')
     ax[1][1].plot(np.arange(30),np.zeros(30),linestyle='dashed', color='black')
     ax[1][1].set_xlim(min(x)-0.5,max(x)+0.5)
     ax[1][1].set_ylim(-ylim-0.1,ylim+0.1)
-    ax[1][1].text(17.5,-0.3,f'rms: {round(y_rms,4)}',fontsize=20)
+    ax[1][1].text(0.1,0.1,f'rms: {round(y_rms,4)}',fontsize=20,horizontalalignment='left',verticalalignment='bottom', transform=ax[1][1].transAxes)
     ax[1][1].set_xlabel('Pan-STARRS R (mag)')
     ax[1][1].set_ylabel('Calibrated R mag - Pan-STARRS R mag')
     ax[1][1].title.set_text('Residuals Using Calibrated Inst Colors for Color Terms')
 
+
     if save_figs:
         plt.savefig(fig_name)
-    return
+    return resid_r, resid_b
 
 def replace_dead_pixels(image_pixels, padding=5, dead_value=0, mask=None):
     """
@@ -514,11 +577,11 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         glob_select = f'backsub_{glob_select}'
 
     # short exposures for finding the astrometric solution
-    files_cali = fetch_files(data_path, bandpass, [0, 50], name_must_contain=glob_select)
+    files_cali = fetch_files(data_path, bandpass, [0, config['texp_cali']+config['texp_buffer']], name_must_contain=glob_select)
     num_cali = len(files_cali)
 
     # long exposures for making science images
-    files_sci = fetch_files(data_path, bandpass, [200, 500], name_must_contain=glob_select)
+    files_sci = fetch_files(data_path, bandpass, [config['texp_sci']-config['texp_buffer'], config['texp_sci']+config['texp_buffer']], name_must_contain=glob_select)
     num_sci = len(files_sci)
 
     # loop over file types (calibration and science)
@@ -622,7 +685,7 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         for fn, sol in zip(files_updated, astrom):
             resamp = improc.resample_image(
                 fn, center[0], center[1], config['pixscale'], config['output_dimensions']['x'],
-                config['output_dimensions']['y'], sol.fitsio_header)
+                config['output_dimensions']['y'], sol.fitsio_header,interp_type=config['interp_type'])
 
             good_keys = ['EXTNAME','DATE_OBS','BLANK','GAIN','RDNOISE','SATURATE','EXPTIME','TEXPTIME','OBJECT','MJD_OBS','UTC_OBS','LST_OBS','PIXSIZE','FILTER','IMAGETYP','CCDSUM','LBCBIN','LBCSPRED','LBCBACK','CCDTEM','LBCOBFIL','FILTEOFF','SUBTRACT_OVERSCAN','TRIM_IMAGE','ORIGIN','FILENAME','OBS_ID','PROPID','OS_NUM','LBCOBID','LBCOBNAM','PARTNER','PI_NAME','AIRMASS','LBTLAT','LBTLONG','LBTELEV','PIXSCAL','DITHSEQ','DITHOFFX','DITHOFFY','TELESCOP','INSTRUME','LBCFWHM','LBTPRES','LBTRHUM','LBTTEMP','LBTWNDIR','LBTWNSPD','GUISTAT','DETECTOR','LBCNCHIP','INSPRE','DETSWV','MIRRORX','MIRRORY','MIRRORZ','MIRRORRX','MIRRORRY','MIRRORRZ','Z4','Z5','Z6','Z7','Z8','Z11','Z22','BACKSUB_TYPE','BACKSUB_VAL']
             header_old = fits.getheader(fn)
@@ -655,14 +718,14 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         logger.end_tqdm()
 
         hdu_exp = fits.PrimaryHDU(exposure_map)
-        hdu_exp.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_M81blob_exposuremap.fits'),overwrite=True)
+        hdu_exp.writeto(os.path.join(frame_out,f'lbc{bandpass.lower()}_exposuremap.fits'),overwrite=True)
 
     if config['subtract_background'] and config['model_subtract_star'] : config['glob_select'] = f'backsub_{glob_select}'
 
     return config, sky_pos, src
 
 
-def calibrate_images(config):
+def calibrate_images(config,tmp_path='/tmp'):
 
     if type(config) is not dict:
         with open(config, 'r') as config:
@@ -690,8 +753,8 @@ def calibrate_images(config):
         for im in ims:
             fn_base = im.split('/')[-1].split('.fits')[0]
             cat_fn = os.path.join(config['image_dir'],f'{ftype}/catalogs/{fn_base}.cat')
-            cat = detection.sextractor.run(im,DETECT_MINAREA=3,DETECT_THRESH=5,PIXEL_SCALE=0.225,PHOT_APERTURES=flux_apers,
-                                 catalog_path=cat_fn,extra_params=extra_params)
+            cat = detection.sextractor.run(im,DETECT_MINAREA=3,DETECT_THRESH=10,PIXEL_SCALE=config['pixscale'],PHOT_APERTURES=flux_apers,
+                                 catalog_path=cat_fn,extra_params=extra_params,tmp_path=tmp_path)
 
             star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and \
                       FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
@@ -713,7 +776,7 @@ def calibrate_images(config):
     panstarrs = Table.read(os.path.join(config['image_dir'],config['reference_catalog_withBESSEL']),format='ascii')
     panstarrs_coord = SkyCoord(panstarrs['ra'],panstarrs['dec'],unit='deg')
 
-    size = (51,51)
+    size = (config['star_cutout_size'],config['star_cutout_size'])
 
     cat_all_cali_r = []
     cat_all_cali_b = []
@@ -770,11 +833,12 @@ def calibrate_images(config):
 
             idx, sep, _ = obj_in_panstarrs_small_coord.match_to_catalog_sky(obj_in_panstarrs_large_coord)
             mask = sep.arcsec < config['allowed_sep']
-            obj_in_panstarrs_small = obj_in_panstarrs_small[mask]
+            obj_in_panstarrs_small = obj_in_panstarrs_small[mask]   # These should be the same length now. 
             obj_in_panstarrs_large = obj_in_panstarrs_large[idx[mask]]
 
             if len(obj_in_panstarrs_large) == 0: continue
 
+            # Figure out which catalog is which again.
             if 'lbcr' in obj_in_panstarrs_large[0]['filename']:
                 obj_in_panstarrs_r = obj_in_panstarrs_large
                 obj_in_panstarrs_b = obj_in_panstarrs_small
@@ -822,7 +886,7 @@ def calibrate_images(config):
                 phot_table_b['aperture_sum'].info.format = '%.8g'  # for consistent table output
 
                 aper_sum_r = phot_table_r[0]['aperture_sum']
-                aper_sum_b = phot_table_r[0]['aperture_sum']
+                aper_sum_b = phot_table_b[0]['aperture_sum']
 
                 mag_inst_r.append(-2.5 * np.log10(aper_sum_r*config['gain']/texp))
                 mag_inst_b.append(-2.5 * np.log10(aper_sum_b*config['gain']/texp))
@@ -906,7 +970,6 @@ def calibrate_images(config):
         else:
             coord_b = SkyCoord(cat_all_sci_b['ALPHA_J2000'],cat_all_sci_b['DELTA_J2000'],unit='deg')
             coord_cut = SkyCoord(ra_cut,dec_cut,unit='deg')
-
             idx, sep, _ = coord_b.match_to_catalog_sky(coord_cut)
             mask = sep.arcsec < 1.
             cat_all_sci_b = cat_all_sci_b[~mask]
@@ -923,7 +986,6 @@ def calibrate_images(config):
     stars_for_aper_corrections = Table()
     stars_for_aper_corrections['ra'] = ra_aper
     stars_for_aper_corrections['dec'] = dec_aper
-
 
     for ftype in ['cali','sci']:
 
@@ -943,12 +1005,11 @@ def calibrate_images(config):
             cat_all_p = cat_all_sci_p
             texp = config['texp_sci']
 
-
         coord_r = SkyCoord(cat_all_r['ALPHA_J2000'],cat_all_r['DELTA_J2000'],unit='deg')
         coord_aper = SkyCoord(ra_aper,dec_aper,unit='deg')
 
         idx, sep, _ = coord_r.match_to_catalog_sky(coord_aper)
-        mask = sep.arcsec < 1.
+        mask = sep.arcsec < config['allowed_sep'] 
         cat_magcal_b = cat_all_b[mask]
         cat_magcal_r = cat_all_r[mask]
         cat_magcal_p = cat_all_p[mask]
@@ -956,8 +1017,9 @@ def calibrate_images(config):
         logger.info(f'Check catalog lengths (these should be the same; b,r,p): {len(cat_magcal_b)}, {len(cat_magcal_r)}, {len(cat_magcal_p)}')
 
         # Get aperture sums for all radii, in both r- and b-band
-        size = (51,51)
-        radii = np.arange(1,25)
+        size = (config['star_cutout_size'],config['star_cutout_size'])
+        radii = np.arange(1,int(config['star_cutout_size']/2))
+        plt.clf()
         fig, axs = plt.subplots(int(2*(len(cat_magcal_p)+1)/3), 3, figsize=(15,260)) 
         mask_r = []
         mask_b = []
@@ -1003,6 +1065,10 @@ def calibrate_images(config):
                 norm=colors.LogNorm(vmin=10, vmax=12000)
                 axs[row, col].imshow(cutout.data, origin='lower', norm=norm, cmap='gray')
                 axs[row, col].set_title(f'{file_stub} | {star_id}')
+                axs[row, col].set_xticks([])
+                axs[row, col].set_yticks([])
+                axs[row, col].xaxis.set_ticklabels([])
+                axs[row, col].yaxis.set_ticklabels([])
                 for aper in apertures:
                     aper.plot(axs[row, col],color=color)
                 if saturation_warning:
@@ -1053,6 +1119,7 @@ def calibrate_images(config):
                 keep_star = False
             elif cat_magcal_b[idx]['id'] in cut_stars_b:
                 keep_star=False
+            starid = cat_magcal_b[idx]['id']
             mask.append(keep_star)
 
         cat_magcal_r = cat_magcal_r[mask]
@@ -1060,13 +1127,26 @@ def calibrate_images(config):
         cat_magcal_p = cat_magcal_p[mask]
         aper_sums_all_r = aper_sums_all_r[mask]
         aper_sums_all_b = aper_sums_all_b[mask]
-
+        
+        mask=[]
+        for idx in range(len(cat_all_p)):
+            keep_star=True
+            if cat_all_r[idx]['id'] in cut_stars_r:
+                keep_star = False
+            elif cat_all_b[idx]['id'] in cut_stars_b:
+                keep_star=False
+            starid = cat_all_b[idx]['id']
+            mask.append(keep_star)
+        cat_all_r = cat_all_r[mask]
+        cat_all_b = cat_all_b[mask]
+        cat_all_p = cat_all_p[mask]
+        
         logger.info(f'Plotting curves of growth for {ftype} images...')
         # Plot curves of growth
         num_exposures = len(np.unique(cat_magcal_r['filename']))
         if num_exposures == 1: num_exposures+=1
         bin_size = 0.02
-
+        plt.clf()
         fig, axs = plt.subplots(num_exposures,3,figsize=(20,num_exposures*6)) 
 
         flux_fracs_all_r = []
@@ -1081,6 +1161,11 @@ def calibrate_images(config):
         prev_exp = cat_magcal_r[0]['filename']
 
         row = 0
+        
+        # Note: flux_fracs_all_r is the flux fraction outside the chosen aperture for EVERY star in a SINGLE exposure. 
+        # flux_fraction_r is the flux fraction outside the chosen aperture for a SINGLE star in a SINGLE exposure. 
+        # flux_median_all_r is the median flux fraction outside the chosen aperture for EVERY star in a SINGLE exposure
+        # flux_medians_r is the flux_median_all_r for EVERY exposure
 
         for idx in range(len(cat_magcal_p)):
 
@@ -1096,17 +1181,17 @@ def calibrate_images(config):
                 files_b.append(cat_magcal_b[idx]['filename'])
 
                 # Find best bins
-                min_bin = min(flux_fracs_all_r) - 0.01
-                max_bin = max(flux_fracs_all_b) + 0.01
+                ###min_bin = min(flux_fracs_all_r) - 0.01
+                ###max_bin = max(flux_fracs_all_b) + 0.01
 
                 axs[row][2].set_xlabel(f'Fraction of flux outside a {chosen_aper} pixel radius aperture',fontsize=20)
                 axs[row][2].set_ylabel('Number of stars',fontsize=20)
-                axs[row][2].hist(np.asarray(flux_fracs_all_r),color='red',bins=np.arange(min_bin,max_bin,bin_size),alpha=0.5,label='r-band');
-                axs[row][2].hist(np.asarray(flux_fracs_all_b),color='blue',bins=np.arange(min_bin,max_bin,bin_size),alpha=0.5,label='b-band');
+                axs[row][2].hist(np.asarray(flux_fracs_all_r),color='red',alpha=0.5,label='r-band',align='left');#,bins=np.arange(min_bin,max_bin,bin_size)
+                axs[row][2].hist(np.asarray(flux_fracs_all_b),color='blue',alpha=0.5,label='b-band',align='left');
                 axs[row][2].vlines(flux_mean_all_r,0,18,color='darkred',lw=2)
-                axs[row][2].vlines(flux_mean_all_b,0,18,color='darkblue',lw=2)
+                axs[row][2].vlines(flux_mean_all_b,0,18,color='darkblue',lw=2,label='mean')
                 axs[row][2].vlines(flux_median_all_r,0,18,color='darkred',lw=2,linestyle='dashed')
-                axs[row][2].vlines(flux_median_all_b,0,18,color='darkblue',lw=2,linestyle='dashed')
+                axs[row][2].vlines(flux_median_all_b,0,18,color='darkblue',lw=2,linestyle='dashed',label='median')
                 axs[row][2].set_ylim(0,5.25)
                 axs[row][2].set_xlim(0.1,0.8)
 
@@ -1164,14 +1249,9 @@ def calibrate_images(config):
 
             axs[row][0].axvline(x=config['chosen_aper'],c='black',linestyle='dashed')
             axs[row][1].axvline(x=config['chosen_aper'],c='black',linestyle='dashed')
-            axs[row][0].plot(np.arange(25),np.zeros(25),color='black')
-            #axs[row][0].legend(fontsize=15,loc='upper right')
-            #axs[row][1].legend(fontsize=15,loc='upper right')
+            axs[row][0].axhline(y=0,color='black')
             axs[row][0].set_ylim(-0.5,1.25)
-            #axs[row][0].set_xlim(0,40)
-            #axs[row][1].set_xlim(0,40)
             axs[row][2].set_xlim(0.1,0.8)
-            #axs[row][1].set_ylim(0,1e7)
             axs[row][0].text(7,-0.35,f'{file_stub_r}\n{file_stub_b}',fontsize=20)
 
             prev_exp = cat_magcal_r[idx]['filename']
@@ -1184,42 +1264,49 @@ def calibrate_images(config):
         flux_medians_b.append(flux_median_all_b)
 
         # Find best bins
-        min_bin = min(flux_fracs_all_r) - 0.01
-        max_bin = max(flux_fracs_all_b) + 0.01
+        #min_bin = min(flux_fracs_all_r) - 0.01
+        #max_bin = max(flux_fracs_all_b) + 0.01
 
         axs[row][2].set_xlabel(f'Fraction of flux outside a {chosen_aper} pixel radius aperture',fontsize=20)
         axs[row][2].set_ylabel('Number of stars',fontsize=20)
-        axs[row][2].hist(np.asarray(flux_fracs_all_r),color='red',bins=np.arange(min_bin,max_bin,bin_size),alpha=0.5,label='r-band');
-        axs[row][2].hist(np.asarray(flux_fracs_all_b),color='blue',bins=np.arange(min_bin,max_bin,bin_size),alpha=0.5,label='b-band');
+        axs[row][2].hist(np.asarray(flux_fracs_all_r),color='red',alpha=0.5,label='r-band'); #,bins=np.arange(min_bin,max_bin,bin_size)
+        axs[row][2].hist(np.asarray(flux_fracs_all_b),color='blue',alpha=0.5,label='b-band'); #,bins=np.arange(min_bin,max_bin,bin_size)
         axs[row][2].vlines(flux_mean_all_r,0,18,color='darkred',lw=2)
-        axs[row][2].vlines(flux_mean_all_b,0,18,color='darkblue',lw=2)
+        axs[row][2].vlines(flux_mean_all_b,0,18,color='darkblue',lw=2,label='mean')
         axs[row][2].vlines(flux_median_all_r,0,18,color='darkred',lw=2,linestyle='dashed')
-        axs[row][2].vlines(flux_median_all_b,0,18,color='darkblue',lw=2,linestyle='dashed')
+        axs[row][2].vlines(flux_median_all_b,0,18,color='darkblue',lw=2,linestyle='dashed',label='median')
+        axs[row][2].set_xlim(0.1,0.8)
         axs[row][2].set_ylim(0,5.25);
 
         plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'curveofgrowth_separate_exposures_{chosen_aper}pix.png'))
 
         # Compare median flux results for different exposures
-        bin_min = min([min(flux_medians_r),min(flux_medians_b)])-bin_size
-        bin_max = max([max(flux_medians_r),max(flux_medians_b)])+bin_size
-
-        plt.hist(flux_medians_r,color='red',alpha=0.5,bins=np.arange(bin_min,bin_max,bin_size));
-        plt.hist(flux_medians_b,color='blue',alpha=0.5,bins=np.arange(bin_min,bin_max,bin_size));
-        plt.vlines(np.median(flux_medians_r),0,4,color='darkred',lw=2,linestyle='dashed')
-        plt.vlines(np.median(flux_medians_b),0,4,color='darkblue',lw=2,linestyle='dashed')
+        #bin_min = min([min(flux_medians_r),min(flux_medians_b)])-bin_size
+        #bin_max = max([max(flux_medians_r),max(flux_medians_b)])+bin_size
+        
+        plt.clf()
+        fig = plt.figure(figsize=(12,12))
+        plt.hist(flux_medians_r,color='red',alpha=0.5)#,bins=np.arange(bin_min,bin_max,bin_size));
+        plt.hist(flux_medians_b,color='blue',alpha=0.5)#,bins=np.arange(bin_min,bin_max,bin_size));
+        plt.vlines(np.median(flux_medians_r),0,18,color='darkred',lw=2,linestyle='dashed')
+        plt.vlines(np.median(flux_medians_b),0,18,color='darkblue',lw=2,linestyle='dashed')
         plt.xlabel(f'Median fraction of flux outside {chosen_aper}-pix aperture for all exposures',fontsize=20)
-        plt.text(.44,3.5,f'median median r-band: {round(np.median(flux_medians_r),4)}\nmedian median b-band: {round(np.median(flux_medians_b),4)}',fontsize=20)
+        plt.ylim(0,5.25)
+        plt.xlim(0.1,0.5)
+        plt.text(.4,3.5,f'median median r-band: {round(np.median(flux_medians_r),4)}\nmedian median b-band: {round(np.median(flux_medians_b),4)}',fontsize=20)
 
-        plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'flux_fraction_median_separate_exposures_{chosen_aper}pix_withoutoutlier.png'))
+        plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'flux_fraction_median_all_exposures_{chosen_aper}pix.png'))
 
         print('Median median r-band: ',np.median(flux_medians_r),'\nMedian median b-band: ',np.median(flux_medians_b))
 
-        cat_all_r,cat_all_b,cat_all_p,zp_r,zp_b,color_term_r,color_term_b = apply_aper_color_corrections(os.path.join(config['image_dir'],ftype),cat_all_r,cat_all_b,cat_all_p,'mag_inst','mag_calibrated',chosen_aper,flux_medians_r,flux_medians_b,files_r,files_b,config['gain'], texp, config['saturation_limit'])
-        plot_residuals(cat_all_r,cat_all_b,cat_all_p,'mag_calibrated',save_figs=True,fig_name=os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'residuals_after_aper_color_corrections_{chosen_aper}pix_separate_exposures_mag_inst_fixed.png'))
-
+        # Note: Using cat_all_r/b/p to calculate zp/colorterms because there are more stars and a wider range of colors, etc. 
+        cat_all_r,cat_all_b,cat_all_p,zp_r,zp_b,color_term_r,color_term_b = apply_aper_color_corrections(os.path.join(config['image_dir'],ftype),cat_all_r,cat_all_b,cat_all_p,'mag_inst','mag_calibrated',chosen_aper,flux_medians_r,flux_medians_b,files_r,files_b,config['gain'], texp, config['saturation_limit'],size=config['star_cutout_size'],save_fn='compare_instrumental_and_catalog_mags_all_exposures.png',remove_outliers=config['reject_calib_outliers'],remove_outliers_std=config['reject_calib_outliers_std'])
+        #cat_all_r,cat_all_b,cat_all_p,zp_r,zp_b,color_term_r,color_term_b = apply_aper_color_corrections(os.path.join(config['image_dir'],ftype),cat_magcal_r,cat_magcal_b,cat_magcal_p,'mag_inst','mag_calibrated',chosen_aper,flux_medians_r,flux_medians_b,files_r,files_b,config['gain'], texp, config['saturation_limit'],size=config['star_cutout_size'],save_fn='compare_instrumental_and_catalog_mags_all_exposures.png',remove_outliers=config['reject_calib_outliers'],remove_outliers_std=config['reject_calib_outliers_std'])
+        resid_r, resid_b = plot_residuals(cat_all_r,cat_all_b,cat_all_p,'mag_calibrated',save_figs=True,fig_name=os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'residuals_after_aper_color_corrections_{chosen_aper}pix_separate_exposures.png'))
+        cat_all_r['residuals'] = resid_r
+        cat_all_b['residuals'] = resid_b
 
         weight_exp = True
-        mask_std = 2.5
         files_r = np.asarray(np.unique(cat_all_r['filename']))
         files_b = np.asarray(np.unique(cat_all_b['filename']))
 
@@ -1234,8 +1321,8 @@ def calibrate_images(config):
 
         # Get exposure map
         logger.info('Creating exposure map...')
-        exp_map_hdu_r = fits.open(os.path.join(config['image_dir'],ftype,'lbcr_M81blob_exposuremap.fits'),ignore_blank=True)
-        exp_map_hdu_b = fits.open(os.path.join(config['image_dir'],ftype,'lbcb_M81blob_exposuremap.fits'),ignore_blank=True)
+        exp_map_hdu_r = fits.open(os.path.join(config['image_dir'],ftype,'lbcr_exposuremap.fits'),ignore_blank=True)
+        exp_map_hdu_b = fits.open(os.path.join(config['image_dir'],ftype,'lbcb_exposuremap.fits'),ignore_blank=True)
         exp_map_r = exp_map_hdu_r[config['ext']].data
         exp_map_b = exp_map_hdu_b[config['ext']].data
          
@@ -1310,13 +1397,19 @@ def calibrate_images(config):
             for i in range(len(files_r)):
 
                 stddiff = abs(median_stack_r - ims_r[i]) / noise_r
-                mask = np.array(stddiff > 3.0)
+                mask = np.array(stddiff > config['stack_mask_std']) 
                 ims_r[i,(mask)] = np.ma.masked
-
-            for i in range(len(files_b)):
+                
                 stddiff = abs(median_stack_b - ims_b[i]) / noise_b
-                mask = np.array(stddiff > 3.0)
-                ims_b[i][(mask)] = np.ma.masked
+                mask = np.array(stddiff > config['stack_mask_std']) 
+                ims_b[i,(mask)] = np.ma.masked
+            
+            dont_mask_idx_r = np.where(~np.sum(~ims_r.mask,axis=0).astype(bool))
+            dont_mask_idx_b = np.where(~np.sum(~ims_b.mask,axis=0).astype(bool))
+
+            for i in range(len(files_r)):
+                ims_r[i].mask[dont_mask_idx_r] = False
+                ims_b[i].mask[dont_mask_idx_b] = False
 
             # Create mean stack
             mean_stack_r = np.ma.average(ims_r,axis=0,weights=weight_r)
@@ -1344,9 +1437,9 @@ def calibrate_images(config):
             hdu_r.header.pop('BACKSUB_MEDIAN')
             hdu_b.header.pop('BACKSUB_MEDIAN')
             '''
-
-            mean_stack_r,num_dead_pix_r = replace_dead_pixels(mean_stack_r, mask=~overlap_r)
-            mean_stack_b,num_dead_pix_b = replace_dead_pixels(mean_stack_b, mask=~overlap_b)
+            # Do we need this??
+            #mean_stack_r,num_dead_pix_r = replace_dead_pixels(mean_stack_r, mask=~overlap_r)
+            #mean_stack_b,num_dead_pix_b = replace_dead_pixels(mean_stack_b, mask=~overlap_b)
 
             hdu = fits.PrimaryHDU(mean_stack_r,header=hdu_r[config['ext']].header)
             hdu.writeto(os.path.join(config['image_dir'],ftype,config['final_stack_fn_r']),overwrite=True)
@@ -1474,7 +1567,7 @@ def calibrate_images(config):
             cat_fn = os.path.join(config['image_dir'],ftype,'catalogs',f'{fn_base}.cat')
 
             cat = detection.sextractor.run(im,DETECT_MINAREA=3,DETECT_THRESH=5,PIXEL_SCALE=0.225,
-                                 catalog_path=cat_fn,extra_params=extra_params)
+                                 catalog_path=cat_fn,extra_params=extra_params,tmp_path=tmp_path)
 
             star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and \
                       FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
@@ -1501,11 +1594,12 @@ def calibrate_images(config):
         idx_r_to_p, sep_r_to_p, _ = r_coord.match_to_catalog_sky(panstarrs_coord)
         mask_r_to_p = sep_r_to_p.arcsec < config['allowed_sep']
         obj_in_panstarrs_r = stack_cat_r[mask_r_to_p]
-        print('Matched panstarrs catalog length: ',len(obj_in_panstarrs_r))
+        print('Matched panstarrs catalog length (r-band): ',len(obj_in_panstarrs_r))
         # Find b-band obj that appear in panstarrs
         idx_b_to_p, sep_b_to_p, _ = b_coord.match_to_catalog_sky(panstarrs_coord)
         mask_b_to_p = sep_b_to_p.arcsec < config['allowed_sep']
         obj_in_panstarrs_b = stack_cat_b[mask_b_to_p]
+        print('\nMatched panstarrs catalog length (b-band): ',len(obj_in_panstarrs_b))
 
         # Find smaller of the catalogs matched to panstarrs
         len_b = len(obj_in_panstarrs_b)
@@ -1543,6 +1637,7 @@ def calibrate_images(config):
         stack_cat_r = obj_in_panstarrs_r
         stack_cat_b = obj_in_panstarrs_b
         stack_cat_p = panstarrs_matched
+        print('\nLength of matched stack catalogs: ',len(stack_cat_r))
 
         # Phew! Catalog cross-matching complete.
 
@@ -1596,6 +1691,7 @@ def calibrate_images(config):
         stack_cat_b = stack_cat_b[~mask]
         stack_cat_r = stack_cat_r[~mask]
         stack_cat_p = stack_cat_p[~mask]
+        print('\nLength of matched stack catalogs after cuts defined in config file: ',len(stack_cat_r))
 
         # Do aperture corrections
 
@@ -1613,6 +1709,7 @@ def calibrate_images(config):
 
         idx, sep, _ = coord_r.match_to_catalog_sky(coord_aper)
         mask = sep.arcsec < config['allowed_sep']
+
         cat_magcal_stack_b = stack_cat_b[mask]
         cat_magcal_stack_r = stack_cat_r[mask]
         cat_magcal_stack_p = stack_cat_p[mask]
@@ -1620,6 +1717,7 @@ def calibrate_images(config):
         logger.info(f'Check catalog lengths (these should be the same; b,r,p): {len(cat_magcal_stack_b)}, {len(cat_magcal_stack_r)}, {len(cat_magcal_stack_p)}')
 
         # Get aperture sums for all radii, in both r- and b-band
+        plt.clf()
         fig, axs = plt.subplots(int(2*len(cat_magcal_stack_p)/3)+1, 3, figsize=(15,25))
         mask_r = []
         mask_b = []
@@ -1663,6 +1761,10 @@ def calibrate_images(config):
                 norm=colors.LogNorm(vmin=10, vmax=12000)
                 axs[row, col].imshow(cutout.data, origin='lower', norm=norm, cmap='gray')
                 axs[row, col].set_title(f'{star_count}')
+                axs[row, col].set_xticks([])
+                axs[row, col].set_yticks([])
+                axs[row, col].xaxis.set_ticklabels([])
+                axs[row, col].yaxis.set_ticklabels([])
                 for aper in apertures:
                     aper.plot(axs[row, col],color=color)
                 if saturation_warning:
@@ -1718,10 +1820,23 @@ def calibrate_images(config):
         cat_magcal_stack_p = cat_magcal_stack_p[mask]
         aper_sums_stack_r = aper_sums_stack_r[mask]
         aper_sums_stack_b = aper_sums_stack_b[mask]
+        
+        mask=[]
+        for idx in range(len(stack_cat_p)):
+            keep_star=True
+            if idx in cut_stars_r:
+                keep_star=False
+            elif idx in cut_stars_b:
+                keep_star = False
+            mask.append(keep_star)
+            
+        stack_cat_r = stack_cat_r[mask]
+        stack_cat_b = stack_cat_b[mask]
+        stack_cat_p = stack_cat_p[mask]
 
         # Plot curves of growth
         bin_size = 0.02
-
+        plt.clf()
         fig, axs = plt.subplots(1,3,figsize=(20,6))
 
         flux_fracs_stack_r = []
@@ -1775,7 +1890,7 @@ def calibrate_images(config):
             axs[0].plot(rad,der_b/max(der_b),color='darkblue')
             axs[0].axvline(x=chosen_aper,c='black',linestyle='dashed')
             axs[1].axvline(x=chosen_aper,c='black',linestyle='dashed')
-            axs[0].plot(np.arange(25),np.zeros(25),color='black')
+            axs[0].axhline(y=0,color='black')
             axs[0].set_ylim(-0.5,1.25)
             axs[2].set_xlim(0.1,0.8)
             #axs[1].set_ylim(0,1e7)
@@ -1788,18 +1903,19 @@ def calibrate_images(config):
 
 
         # Find best bins
-        min_bin = min(flux_fracs_stack_r) - 0.01
-        max_bin = max(flux_fracs_stack_b) + 0.01
+        ###min_bin = min(flux_fracs_stack_r) - 0.01
+        ###max_bin = max(flux_fracs_stack_b) + 0.01
 
         axs[2].set_xlabel(f'Fraction of flux outside a {chosen_aper} pixel radius aperture',fontsize=20)
         axs[2].set_ylabel('Number of stars',fontsize=20)
-        axs[2].hist(np.asarray(flux_fracs_stack_r),color='red',bins=np.arange(min_bin,max_bin,bin_size),alpha=0.5,label='r-band');
-        axs[2].hist(np.asarray(flux_fracs_stack_b),color='blue',bins=np.arange(min_bin,max_bin,bin_size),alpha=0.5,label='b-band');
+        axs[2].hist(np.asarray(flux_fracs_stack_r),color='red',alpha=0.5,label='r-band',align='left'); #bins=np.arange(min_bin,max_bin,bin_size)
+        axs[2].hist(np.asarray(flux_fracs_stack_b),color='blue',alpha=0.5,label='b-band',align='left');#,bins=np.arange(min_bin,max_bin,bin_size)
         axs[2].vlines(flux_mean_stack_r,0,18,color='darkred',lw=2)
         axs[2].vlines(flux_mean_stack_b,0,18,color='darkblue',lw=2)
         axs[2].vlines(flux_median_stack_r,0,18,color='darkred',lw=2,linestyle='dashed')
         axs[2].vlines(flux_median_stack_b,0,18,color='darkblue',lw=2,linestyle='dashed')
         axs[2].text(0.4,4,f'r-band median: {round(flux_median_stack_r,2)}\nb-band median: {round(flux_median_stack_b,2)}',fontsize=20)
+        axs[2].set_xlim(0.1,0.8)
         axs[2].set_ylim(0,5.25);
 
         plt.savefig(os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'curveofgrowth_stack_{chosen_aper}pix.png'))
@@ -1809,8 +1925,11 @@ def calibrate_images(config):
         files_r = [config['final_stack_fn_r']]
         files_r = [config['final_stack_fn_b']]
 
-        stack_cat_r,stack_cat_b,stack_cat_p,zp_stack_r,zp_stack_b,color_term_stack_r, color_term_stack_b = apply_aper_color_corrections(os.path.join(config['image_dir'],ftype),stack_cat_r,stack_cat_b,stack_cat_p,'mag_inst','mag_calibrated',chosen_aper,flux_medians_r,flux_medians_b,files_r,files_b,config['gain'], texp, config['saturation_limit'])
-        plot_residuals(stack_cat_r,stack_cat_b,stack_cat_p,'mag_calibrated',save_figs=True,fig_name=os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'residuals_after_aper_color_corrections_{chosen_aper}pix_stack.png'))
+        stack_cat_r,stack_cat_b,stack_cat_p,zp_stack_r,zp_stack_b,color_term_stack_r, color_term_stack_b = apply_aper_color_corrections(os.path.join(config['image_dir'],ftype),stack_cat_r,stack_cat_b,stack_cat_p,'mag_inst','mag_calibrated',chosen_aper,flux_medians_r,flux_medians_b,files_r,files_b,config['gain'], texp, config['saturation_limit'],size=config['star_cutout_size'],save_fn='compare_instrumental_and_catalog_mags_stacks.png',remove_outliers=config['reject_calib_outliers'],remove_outliers_std=config['reject_calib_outliers_std'])
+        #stack_cat_r,stack_cat_b,stack_cat_p,zp_stack_r,zp_stack_b,color_term_stack_r, color_term_stack_b = apply_aper_color_corrections(os.path.join(config['image_dir'],ftype),cat_magcal_stack_r,cat_magcal_stack_b,cat_magcal_stack_p,'mag_inst','mag_calibrated',chosen_aper,flux_medians_r,flux_medians_b,files_r,files_b,config['gain'], texp, config['saturation_limit'],size=config['star_cutout_size'],save_fn='compare_instrumental_and_catalog_mags_stacks.png',remove_outliers=config['reject_calib_outliers'],remove_outliers_std=config['reject_calib_outliers_std'])
+        resid_stack_r,resid_stack_b = plot_residuals(stack_cat_r,stack_cat_b,stack_cat_p,'mag_calibrated',save_figs=True,fig_name=os.path.join(config['image_dir'],ftype,'diagnostic-plots',f'residuals_after_aper_color_corrections_{chosen_aper}pix_stack.png'))
+        stack_cat_r['residuals'] = resid_stack_r
+        stack_cat_b['residuals'] = resid_stack_b
 
         with fits.open(os.path.join(config['out_dir'],ftype,zp_stack_r['filename'][0]), 'update') as hdu:
             hdu[config['ext']].header['STACK_ZPT'] = -zp_stack_r['zp'][0]

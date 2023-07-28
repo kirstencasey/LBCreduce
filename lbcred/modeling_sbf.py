@@ -46,8 +46,20 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
 
     if config['model_summary_fn'] != None:
         bestfit_params = io.read_results(os.path.join(config['image_dir'], config['model_summary_fn']), imfit_functions)
-        comp = imfit_functions.index('Sersic')+1
+        sersic_idxs = np.where(np.asarray(imfit_functions)=='Sersic')[0]
+        
+        if len(sersic_idxs) > 1: # Choose Sersic component centered closest to the center of the image 
+            pix_dist = 10000
+            for sersic_idx in sersic_idxs:
+                sersic = bestfit_params[f'comp_{sersic_idx+1}']
+                sersic_dist = np.sqrt((sersic['X0']-shape[0]/2)**2 + (sersic['Y0']-shape[1]/2)**2)
+                if sersic_dist < pix_dist:
+                    pix_dist = sersic_dist
+                    comp = sersic_idx+1
+        
+        else: comp = imfit_functions.index('Sersic')+1
         sersic_results = bestfit_params[f'comp_{comp}']
+    
     else:
         sersic_results = {'function' : 'Sersic', 'X0' : config['xpos'], 'Y0' : config['ypos'],
                            'PA' : config['pa'], 'ell' : config['ellip'], 'n' : config['n'],
@@ -93,6 +105,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     used_blank_nums = []
     blank_inputs = {}
     signals = []
+    bg_signals = []
     
     if config['masking_sbf']['randomly_vary_grow_obj']: grow_objs =[]
     if config['masking_sbf']['randomly_vary_mask_radius']: scales = []
@@ -142,11 +155,13 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
                         use_sigma=config['use_sigma'])
         signal = (results.p[0])*config['gain']/config['exposure_time']/results.npix
         
+        bg_signal = None
         if config['include_blank_field_correction']:
             blank_results = sbf_functions.measure_sbf(blank_resid[config['ext']].data, psf, mask=blank_mask, k_range=[k_min, k_max],
                         fit_param_guess=[100, 50], num_radial_bins=config['num_radial_bins'],
                         use_sigma=config['use_sigma'])
             signal = (results.p[0]-blank_results.p[0])*config['gain']/config['exposure_time']/results.npix
+            bg_signal = (blank_results.p[0])*config['gain']/config['exposure_time']/results.npix
             used_blank_nums.append(blank_num)
 
         # Should probably modify this in the case where blank_results!=None
@@ -160,6 +175,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
         dists_b.append(d_b)
         all_results.append(results)
         signals.append(signal)
+        bg_signals.append(bg_signal)
 
 
         iter+=1
@@ -171,18 +187,23 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
         wavg_dist_a = np.median(dists_a)
         wavg_dist_b = np.median(dists_b)
         uncert_mag = np.std(sbf_mags)
+        print('\nMedian signal: ',np.median(np.asarray(signals)))
+        print('Std of background signal: ',np.std(np.asarray(bg_signals)))
+        print('S/N: ',np.median(np.asarray(signals))/np.std(np.asarray(bg_signals)),'\n')
+        s_n = np.median(np.asarray(signals))/np.std(np.asarray(bg_signals))
     else:
         wavg_mag = np.average(sbf_mags,weights=1/chi_squares)
         wavg_dist_a = np.average(dists_a,weights=1/chi_squares)
         wavg_dist_b = np.average(dists_b,weights=1/chi_squares)
         uncert_mag = np.std(sbf_mags)
+        s_n = 0.
     logger.info(f'SBF result:\nSBF magnitude: {round(wavg_mag,3)}\nSBF distance (using Eqn. 2 from Jerjen 2000): {round(wavg_dist_a/1e6,3)} Mpc\nSBF distance (using Eqn. 3 from Jerjen 2000): {round(wavg_dist_b/1e6,3)} Mpc')
 
     k_mins=np.asarray(k_mins)
     k_maxs=np.asarray(k_maxs)
 
     # Save results
-    for name, arr in zip(['sbf_mags','chi_squares','k_min','k_max','dist_a','dist_b'],[sbf_mags,chi_squares,k_mins,k_maxs,dists_a,dists_b]):
+    for name, arr in zip(['sbf_mags','chi_squares','k_min','k_max','dist_a','dist_b','s_n'],[sbf_mags,chi_squares,k_mins,k_maxs,dists_a,dists_b,s_n]):
         out_name = f'sbf_calculation_{name}'
         if run_id is not None: out_name += f'_{run_id}'
         if run_iter is not None: out_name += f'_iter{run_iter}'
@@ -190,11 +211,6 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
         file = open(os.path.join(config['out_dir'],out_name), "wb")
         np.save(file, arr)
         file.close
-        
-    print('Median signal: ',np.median(np.asarray(signals)))
-    print('Std of signal: ',np.std(np.asarray(signals)))
-    print('S/N: ',np.median(np.asarray(signals))/np.std(np.asarray(signals)))
-
 
     idx = np.where(chi_squares==chi_squares.min())[0][0]
     logger.info('Calculating best-fit SBF...')
@@ -235,7 +251,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     else:
         save_fn = os.path.join(config['out_dir'],config['model_fn'].replace('.fits',f'_sbf-results_iter{run_iter}.png'))
 
-    sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spatial Frequency (pixel$^{-1}$)',
+    sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spacial Frequency (pixel$^{-1}$)',
                     ylabel=f'Power ({color}-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
                     yscale='log', plot_errors=False, ylim_factors=[0.5, 1.1],
                     cmap='gray_r',save_fn=save_fn)
@@ -252,7 +268,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
             
         # Make it so that sbf_results function plots all the blank fields.
         sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spacial Frequency (pixel$^{-1}$)',
-                ylabel=f'Power ({color}-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
+                ylabel=f'Power (${color}$-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
                 yscale='log', plot_errors=False, ylim_factors=[0.5, 1.1],
                 cmap='gray_r',save_fn=save_fn.replace('.png','_withblankfields.png'), normalize_ps = True, plot_blank_fields = True, blank_results = blank_inputs)
         

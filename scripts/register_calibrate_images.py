@@ -25,7 +25,7 @@ if __name__ == '__main__':
         config, sky_pos, src = lbcred.register_images(tmp_path=args.tmp_path, bandpass='B', ref_cat=args.ref_cat, index_path=args.index_path, make_plots=args.make_plots, config_fn=args.config_fn)
 
         config['image_dir'] = config['out_dir']
-        if config['subtract_background']: config['glob_select'] = '_backsub_' + config['glob_select'].replace('.fits','_reg.fits')
+        if config['subtract_background']: config['glob_select'] = 'backsub_' + config['glob_select'].replace('.fits','_reg.fits')
         else: config['glob_select'] = config['glob_select'].replace('.fits','_reg.fits')
 
     # Calibrate images

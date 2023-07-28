@@ -9,12 +9,20 @@ import scipy.ndimage as ndimage
 
 __all__ = ['background_subtraction']
 
-def generate_mask_for_background_estimation(filename, thresh=20.0, custom_mask=None, grow_sig=None):
+def generate_mask_for_background_estimation(filename, thresh=20.0, custom_mask=None, grow_sig=None, replace_nan=True):
 
     mask_fn = filename.replace('backsub','weightimage')
-    im = fits.getdata(filename)
-    mask = ~np.zeros(im.shape,bool)
+    im_hdu = fits.open(filename)
+    if replace_nan and True in np.isnan(im_hdu[0].data):
+        im_hdu[0].data[np.where(np.isnan(im_hdu[0].data))] = 0.
+        im_hdu.writeto(filename,overwrite=True)
+        print(f'WARNING: NaN replaced in {filename}.')
     
+    im = im_hdu[0].data
+    im_hdu.close()
+        
+    mask = ~np.zeros(im.shape,bool)
+
     # Incorporate custom mask if necessary
     if custom_mask is not None:
         mask = ~mask
@@ -40,12 +48,12 @@ def generate_mask_for_background_estimation(filename, thresh=20.0, custom_mask=N
             mask = mask.astype(bool) | circ_mask
         mask = ~mask
     
-    median = np.median(im[mask].flatten())
-    std = mad_std(im[mask].flatten())
+    median = np.nanmedian(im[mask].flatten())
+    std = mad_std(im[mask].flatten(),ignore_nan=True)
 
     mask &= im < median + (thresh*std)
     mask &= im > median - (thresh*std)
-    
+
     if grow_sig != None:
         mask = ndimage.gaussian_filter(mask.astype(float), sigma=grow_sig)
         mask[mask<1] = 0
@@ -162,7 +170,8 @@ def background_subtraction(filename, config, fn_id=None, temp_path='/tmp'):
 
     SEsky = None
     custom_mask = None
-    if config['generate_image_mask'] and config['use_custom_mask'] : custom_mask = config['custom_mask_csv_fn']
+    if config['generate_image_mask'] and config['use_custom_mask'] : 
+        custom_mask = config['custom_background_mask']
 
     if config['background_model'] == 'SEsky':
 

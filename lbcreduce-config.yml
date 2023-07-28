@@ -171,6 +171,7 @@ object_options :
 
 ###################### FLAT OPTIONS ######################
 use_specified_flat_options : True
+use_flat_date : '2019-10-24'
 
 # Examine flat field counts
 examine_flat_counts: True

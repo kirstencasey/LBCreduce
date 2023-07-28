@@ -173,13 +173,14 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
             model_sum = ''
             for func in imfit_results[key]['functions']: model_sum += f'{func} '
             logger.info(f'Running Imfit : {model_sum}')
-            results, model_fn, resid_fn, bf_fn = imfit.run_imfit(im_fn, mask_fn, color_options, config, model_funcs=imfit_results[key]['functions'], options=options, fixedsersic=fixed_struc, viz=True, iter=iter, fn_stub=fn_stub)
+            results, model_fn, resid_fn, bf_fn, sersic_comps = imfit.run_imfit(im_fn, mask_fn, color_options, config, model_funcs=imfit_results[key]['functions'], options=options, fixedsersic=fixed_struc, viz=True, iter=iter, fn_stub=fn_stub)
 
             # Update results dict
             imfit_results[key]['results'] = results
             imfit_results[key]['model_fn'] = model_fn
             imfit_results[key]['resid_fn'] = resid_fn
             imfit_results[key]['bestfit_fn'] = bf_fn
+            imfit_results[key]['sersic_comps'] = sersic_comps
             step_num += 1
 
         # Summarize major findings
@@ -189,7 +190,8 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
         results2 = imfit_results[final_step2]['results'].results[f'comp_{comp2}']
         bf1_fn = imfit_results[final_step1]['bestfit_fn']
         bf2_fn = imfit_results[final_step2]['bestfit_fn']
-        mag1, mag2, color, orig_color = imfit.summarize_results(config, results1, results2)
+        #mag1, mag2, color, orig_color = imfit.summarize_results_old(config, results1, results2)
+        mag1, mag2, color, orig_color = imfit.summarize_results(config, imfit_results[final_step1], imfit_results[final_step2])
 
         ######### END
 

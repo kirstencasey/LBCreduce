@@ -70,12 +70,17 @@ def get_image_info(config, image_dir=None, filenames=None):
 	filters = []
 	lbcinst = []
 	for fi in all_images:
+		rewrite = False
 		hdulist = fits.open(os.path.join(image_dir, fi))
 		propids.append(hdulist[0].header['PROPID'])
-		objects.append(hdulist[1].header['OBJECT'])
 		imagetyps.append(hdulist[1].header['IMAGETYP'])
 		filters.append(hdulist[1].header['FILTER'])
 		lbcinst.append(hdulist[0].header['INSTRUME'])
+		if ' ' in hdulist[1].header['OBJECT'] or '_' in hdulist[1].header['OBJECT']: 
+		    hdulist[1].header['OBJECT'] = hdulist[1].header['OBJECT'].replace(' ','').replace('_','')
+		    rewrite = True
+		objects.append(hdulist[1].header['OBJECT'])
+		if rewrite: hdulist.writeto(os.path.join(image_dir, fi),overwrite=True)
 		hdulist.close()
 
 	propids = np.asarray(propids)
@@ -280,9 +285,10 @@ def find_best_masterframe(mastertype, sci_info, config, date = None):
 			warnings.warn('Select one of the following masterflats to use instead (ex. type \'1\') or type \'stop\' to stop looking.', AstropyUserWarning)
 			masterflats = glob.glob(os.path.join(config['out_dir'], 'midproc') + 'masterflat*')
 			master_name = interactive.get_input(question, acceptable_responses=np.arange(1,len(masterflats)), exit_response='stop', full_stop = False)
-		'''
-		if master_name == os.path.join(config['out_dir'],'midproc','masterflat_2019-12-21-chip2_R-BESSEL.fits'):
+		
+		if master_name == os.path.join(config['out_dir'],'midproc','masterflat_2019-12-21-chip2_R-BESSEL.fits'): ################## THIS PART WAS HARD CODED FOR SOME REASON... I DON'T REMEMBER WHY... ###########
 			master_name = '/Users/kirstencasey/test_out/midproc/masterflat_2019-12-20-chip2_R-BESSEL.fits'
+		'''
 		master_data = CCDData.read(master_name, unit=config['data_units'])
 	return master_data
 
@@ -306,7 +312,7 @@ def find_best_overscan_legendre_model(overscan, image_info, legendre_options, ma
 
 	for row in overscan.data:
 		saverow = np.append(saverow,row)
-		if row_num % bin_width is 0 and row_num is not 0:
+		if row_num % bin_width == 0 and row_num != 0:
 
 			if bin_func == 'median':
 				binned_overscan[idx] = np.median(saverow)

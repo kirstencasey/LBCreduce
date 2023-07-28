@@ -68,7 +68,7 @@ def create_imfit_mask(config, color_specific_info):
 
     return mask, mask_fn
 
-def run_makeimage(bestfit_fn, psf_fn=None, ref_fn=None, output_root=None, out_fn=None, del_temp=False, options=''):
+def run_makeimage(bestfit_fn, psf_fn=None, ref_fn=None, output_root=None, out_fn=None, del_temp=False, options='', sersic_comps=[]):
 
     cmd = f'makeimage {bestfit_fn} '
 
@@ -88,10 +88,26 @@ def run_makeimage(bestfit_fn, psf_fn=None, ref_fn=None, output_root=None, out_fn
     subprocess.call(cmd, shell=True)
 
     if del_temp: os.remove(temp_fn)
+    
+    # Create combined Sersic model file
+    if len(sersic_comps) > 1:
+        first_sersic = True
+        fn_suffix = ''
+        for sersic in sersic_comps:
+            fn_suffix += f'_{sersic}_Sersic'
+            if first_sersic: 
+                combined_sersic = fits.open(f'{output_root}{sersic}_Sersic.fits')
+                fn_suffix = fn_suffix[1:]
+                first_sersic = False
+            else:
+                combined_sersic[0].data += fits.getdata(f'{output_root}{sersic}_Sersic.fits')
+        combined_fn = f'{output_root}{fn_suffix}.fits'
+        combined_sersic.writeto(f'{output_root}{fn_suffix}.fits', overwrite=True)
+        return combined_fn
 
-    return
+    return None
 
-def organize_initial_params(config, model, fixedsersic=None, color=None):
+def organize_initial_params(config, model, fixedsersic=None, color=None, sersic_idx=0):
 
     if model == 'TiltedSkyPlane':
         I_0 = [config['tilted_plane_params']['I_0_guess'],config['tilted_plane_params']['I_0_min'],config['tilted_plane_params']['I_0_max']]
@@ -149,11 +165,12 @@ def organize_initial_params(config, model, fixedsersic=None, color=None):
         init_params = dict(PA=PA, n=n, ell=ell,r_e=r_e,I_e=I_e)
         dcent = config['sersic_params']['pos_err']
 
-    elif model == 'Sersic' and fixedsersic != None:
+    elif model == 'Sersic' and fixedsersic != None: 
         fixedparams = fixedsersic.results
+        sersic_num = -1
         for i in range(len(fixedparams)-1):
-
-            if fixedparams[f'comp_{i+1}']['function'] == 'Sersic':
+            if fixedparams[f'comp_{i+1}']['function'] == 'Sersic': sersic_num+=1
+            if fixedparams[f'comp_{i+1}']['function'] == 'Sersic' and sersic_num==sersic_idx:
                 PA = [fixedparams[f'comp_{i+1}']['PA'], 'fixed']
                 n = [fixedparams[f'comp_{i+1}']['n'], 'fixed']
                 ell = [fixedparams[f'comp_{i+1}']['ell'], 'fixed']
@@ -177,7 +194,7 @@ def organize_initial_params(config, model, fixedsersic=None, color=None):
     return init_params, center, dcent
 
 def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options='', fixedsersic=None, viz=False, iter=None, fn_stub=None, alt_out_dir=None, alt_image_dir=None, glob_select=None):
-    print(config['image_dir'])
+
     psf_fn = os.path.join(config['image_dir'],color_specific_info['psf'])
     color = color_specific_info['name']
     if alt_out_dir is None: out_dir = config['out_dir']
@@ -203,12 +220,19 @@ def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options
     params = []
     centers = []
     dcents = []
+    sersic_comps = []
+    sersic_idx = 0
+    comp_idx = 1
     for func in model_funcs:
-        init_params, center, dcent = organize_initial_params(config, func, fixedsersic, color)
+        init_params, center, dcent = organize_initial_params(config, func, fixedsersic, color, sersic_idx)
+        if func=='Sersic': 
+            sersic_idx+=1
+            sersic_comps.append(comp_idx)
         params.append(init_params)
         centers.append(center)
         dcents.append(dcent)
         if dcent is not None: dcent_final = dcent
+        comp_idx+=1
 
     model = pymfit.Model(funcs = model_funcs, params = params, centers = centers, dcent=dcent_final)
 
@@ -225,19 +249,21 @@ def run_imfit(img_fn, mask_fn, color_specific_info, config, model_funcs, options
     io.rename_fits_file(os.path.join(image_dir,img_fn.replace('.fits','_res.fits')), resid_fn, delete_old=True, overwrite=config['overwrite'])
 
     if len(model_funcs) > 1 and 'Sersic' in model_funcs:
-        run_makeimage(bestfit_fn, psf_fn=psf_fn, ref_fn=os.path.join(image_dir,img_fn), output_root=model_fn.replace('.fits','_'))
-        sersic_comp = model_funcs.index('Sersic')+1
-        model_fn = model_fn.replace('.fits',f'_{sersic_comp}_Sersic.fits')
+        model_file = run_makeimage(bestfit_fn, psf_fn=psf_fn, ref_fn=os.path.join(image_dir,img_fn), output_root=model_fn.replace('.fits','_'),sersic_comps=sersic_comps)
+        if len(sersic_comps)==1: 
+            sersic_comp = model_funcs.index('Sersic')+1 
+            model_fn = model_fn.replace('.fits',f'_{sersic_comp}_Sersic.fits')
+        else: model_fn = model_file
 
     if viz:
         if iter is None: fn = model_fn.replace('.fits','.png')
         else: fn = model_fn.replace('.fits',f'_iter{iter}.png')
         fitter.viz_results(show=False, save_fn=fn, dpi=200)
 
-    return fitter, model_fn, resid_fn, bestfit_fn #ADDED BESTFIT_FN TO LIST OF RETURNS!!
+    return fitter, model_fn, resid_fn, bestfit_fn, sersic_comps
 
 
-def summarize_results(config, sersic_params1, sersic_params2=None):
+def summarize_results_old(config, sersic_params1, sersic_params2=None):
 
     zpt1 = config['color1']['zpt'] - 2.5*np.log10(config['gain']/config['exposure_time'])
     params1 = {'I_e': sersic_params1['I_e'],
@@ -273,8 +299,69 @@ def summarize_results(config, sersic_params1, sersic_params2=None):
         return mag1_corrected , mag2_corrected , color_corrected, color
 
     return sersic1.m_tot - config['color1']['extinction']
+    
+    
+def summarize_results(config, imfit_results1, imfit_results2=None):
 
-def determine_imfit_comps(imfit_config):
+    zpt1 = config['color1']['zpt'] - 2.5*np.log10(config['gain']/config['exposure_time'])
+    
+    mags1 = []
+    for comp in imfit_results1['sersic_comps']:
+        sersic_params1 = imfit_results1['results'].results[f'comp_{comp}']
+        params1 = {'I_e': sersic_params1['I_e'],
+              'r_e': sersic_params1['r_e'],
+              'n': sersic_params1['n'],
+              'X0': sersic_params1['X0'],
+              'Y0': sersic_params1['Y0'],
+              'ell': sersic_params1['ell'],
+              'PA': sersic_params1['PA']}
+        sersic1 = pymfit.sersic.Sersic(params1, zpt=zpt1, pixscale=config['pixscale'])
+        mags1.append(sersic1.m_tot)
+    
+    if len(mags1)==1: mag1 = mags1[0]
+    else:
+        flux = 0
+        for mag in mags1:
+            flux += 10**(-0.4*mag)
+        mag1 = -2.5*np.log10(flux)
+
+    if imfit_results2 is not None:
+        zpt2 = config['color2']['zpt'] - 2.5*np.log10(config['gain']/config['exposure_time'])
+        mags2 = []
+        for comp in imfit_results2['sersic_comps']:
+            sersic_params2 = imfit_results2['results'].results[f'comp_{comp}']
+            params2 = {'I_e': sersic_params2['I_e'],
+                  'r_e': sersic_params2['r_e'],
+                  'n': sersic_params2['n'],
+                  'X0': sersic_params2['X0'],
+                  'Y0': sersic_params2['Y0'],
+                  'ell': sersic_params2['ell'],
+                  'PA': sersic_params2['PA']}
+            sersic2 = pymfit.sersic.Sersic(params2, zpt=zpt2, pixscale=config['pixscale'])
+            mags2.append(sersic2.m_tot)
+        
+        if len(mags2)==1: mag2 = mags2[0]
+        else:
+            flux = 0
+            for mag in mags2:
+                flux += 10**(-0.4*mag)
+            mag2 = -2.5*np.log10(flux)
+        
+        color = mag2 - mag1
+
+        # Re-calculate mags using color terms and extinction
+        mag1_corrected = mag1 - config['color1']['extinction'] - config['color1']['color_term']*color
+        mag2_corrected = mag2 - config['color2']['extinction'] - config['color2']['color_term']*color
+
+        color_corrected = mag2_corrected - mag1_corrected
+
+        return mag1_corrected , mag2_corrected , color_corrected, color
+
+    return mag1 - config['color1']['extinction']    
+    
+
+
+def determine_imfit_comps_old(imfit_config):
 
     step_num = 1
     for step in imfit_config['imfit_steps']:
@@ -285,6 +372,43 @@ def determine_imfit_comps(imfit_config):
         step_num+=1
     comp2 = misc.list_of_strings(imfit_config['imfit_steps'][f'step{step2}']['functions']).index('Sersic')+1
     comp1 = misc.list_of_strings(imfit_config['imfit_steps'][f'step{step1}']['functions']).index('Sersic')+1
+    comp2 = f'comp_{comp2}'
+    comp1 = f'comp_{comp1}'
+
+    return comp1,comp2
+    
+def determine_imfit_comps(imfit_config, imfit_results=None, shape=(1051,1051)):
+    '''
+    imfit_results : dict, Only provide if there is more than one Sersic component to choose from. 
+                    This will choose the Sersic component centered closest to the center of the image.
+    '''
+    
+    step_num = 1
+    for step in imfit_config['imfit_steps']:
+        if imfit_config['imfit_steps'][step]['color'] == imfit_config['color1']['name']:
+            step1 = step_num
+        elif imfit_config['imfit_steps'][step]['color'] == imfit_config['color2']['name']:
+            step2 = step_num
+        step_num+=1
+        
+    functions1 = misc.list_of_strings(imfit_config['imfit_steps'][f'step{step1}']['functions'])
+    functions2 = misc.list_of_strings(imfit_config['imfit_steps'][f'step{step2}']['functions'])
+    
+    if imfit_results is None: 
+        comp2 = functions2.index('Sersic')+1
+        comp1 = functions1.index('Sersic')+1
+    else:
+        sersic_idxs = np.where(np.asarray(functions1)=='Sersic')[0]
+        pix_dist = 10000
+        for sersic_idx in sersic_idxs:
+            sersic = imfit_results[f'comp_{sersic_idx+1}']
+            sersic_dist = np.sqrt((sersic['X0']-shape[0]/2)**2 + (sersic['Y0']-shape[1]/2)**2)
+            if sersic_dist < pix_dist:
+                pix_dist = sersic_dist
+                comp = sersic_idx+1
+        comp1 = comp
+        comp2 = comp
+    
     comp2 = f'comp_{comp2}'
     comp1 = f'comp_{comp1}'
 

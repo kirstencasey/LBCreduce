@@ -94,6 +94,10 @@ def sbf_results(sbf, residual_image, subplots=None, xlabel=sbf_xlabel,
 
     else:
         normalization = 1.
+    #########
+    print('\nNORMALIZATION: ',normalization)
+    print('\nSBF P: ', sbf.p)
+    print('\nSBF NPIX: ', sbf.npix)
         
     ax[1].axhline(y=sbf.p[1] / normalization / sbf.npix, ls='--', c='gray', lw=3)   # White noise floor
     norm = sbf.fit_func(sbf.k, *sbf.p / normalization).max() / sbf.ps_psf.max()
@@ -101,7 +105,7 @@ def sbf_results(sbf, residual_image, subplots=None, xlabel=sbf_xlabel,
                    c='gray', lw=3)                                  # PSF contribution to power spectrum
 
     ax[1].plot(sbf.k, sbf.fit_func(sbf.k, *sbf.p / normalization) / sbf.npix,
-                   c='slateblue', lw=3)                             # Power spectrum fit
+                   c='orchid', lw=3)                             # Power spectrum fit
     if plot_errors:
         ax[1].errorbar(sbf.k, sbf.ps_image / normalization / sbf.npix,
                        yerr=sbf.ps_image_err / sbf.npix,
@@ -271,7 +275,7 @@ def get_sbf_mask_resid(model_fn, resid_fn, sersic_params, grow_obj, scale, confi
     plt.clf()
     plt.imshow(resid[config['ext']].data,vmin=vmin,vmax=vmax,cmap='gray_r')
     plt.imshow(sbf_mask,cmap='BuPu',alpha=0.3)
-    plt.title(f'SFB residual : {color}-band')
+    plt.title(f'SBF residual : {color}-band')
     plt.savefig(os.path.join(config['out_dir'], f'sbf_resid_mask_{color}.png'))
 
     return resid, sbf_mask
