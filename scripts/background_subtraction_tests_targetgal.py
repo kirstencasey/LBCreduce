@@ -218,20 +218,25 @@ def run_background_subtraction_tests(back_models,overwrite_out_dir=None,psf_num=
     
     for back_model in back_models:
 
-        reg_config['out_dir'] = os.path.join(orig_reg_out_dir,back_model)
-        im_config['image_dir'] = os.path.join(orig_image_dir,back_model)
-        im_config['out_dir'] = os.path.join(orig_image_dir,back_model)
         logger.info(f'Working on background model: {back_model}')
         bckgnd_models.append(back_model)
+        im_config['out_dir'] = os.path.join(orig_image_dir,back_model)
+    
+        if register_calibrate_ims:
 
-        reg_config, im_config, out_fn_r, out_fn_b, stack_fn_r   = run_registration_calibration_steps(reg_config, register_config, im_config, iter, back_model, True, xpos, ypos, cutout_size, orig_image_dir, use_premade_masks=use_premade_masks,overwrite_out_dir=overwrite_out_dir,psf_num=psf_num)
-        mag_info1 = fits.getheader(os.path.join(reg_config['out_dir'],'sci',reg_config['final_stack_fn_r']))
-        mag_info2 = fits.getheader(os.path.join(reg_config['out_dir'],'sci',reg_config['final_stack_fn_b']))
-        im_config['color1']['zpt'] = mag_info1['STACK_ZPT']
-        im_config['color2']['zpt'] = mag_info2['STACK_ZPT']
-        im_config['color1']['color_term'] = mag_info1['STACK_COLORTERM_R']
-        im_config['color2']['color_term'] = mag_info1['STACK_COLORTERM_B']
-        im_config['image_dir'] = orig_image_dir
+            reg_config['out_dir'] = os.path.join(orig_reg_out_dir,back_model)
+            im_config['image_dir'] = os.path.join(orig_image_dir,back_model)
+           
+         
+            reg_config, im_config, out_fn_r, out_fn_b, stack_fn_r   = run_registration_calibration_steps(reg_config, register_config, im_config, iter, back_model, True, xpos, ypos, cutout_size, orig_image_dir, use_premade_masks=use_premade_masks,overwrite_out_dir=overwrite_out_dir,psf_num=psf_num)
+            mag_info1 = fits.getheader(os.path.join(reg_config['out_dir'],'sci',reg_config['final_stack_fn_r']))
+            mag_info2 = fits.getheader(os.path.join(reg_config['out_dir'],'sci',reg_config['final_stack_fn_b']))
+            im_config['color1']['zpt'] = mag_info1['STACK_ZPT']
+            im_config['color2']['zpt'] = mag_info2['STACK_ZPT']
+            im_config['color1']['color_term'] = mag_info1['STACK_COLORTERM_R']
+            im_config['color2']['color_term'] = mag_info1['STACK_COLORTERM_B']
+            im_config['image_dir'] = orig_image_dir
+        else: stack_fn_r = os.path.join(im_config['image_dir'],'sci',reg_config['final_stack_fn_r'])
 
         # Run imfit
         if run_imfit:
