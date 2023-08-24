@@ -3,7 +3,7 @@
 ############################### Directory and File Selection Options ###############################
 # NOTE: This section covers important information about how LBCreduce will find the images you want to reduce.
 
-image_dir : '/Users/kirstencasey/m81_test_in' #'/Users/kirstencasey/test_raw_ims' # Where all the files needed for image reduction are located
+image_dir : '/Users/kirstencasey/m81_test_in' # Where all the files needed for image reduction are located
 out_dir : '/Users/kirstencasey/m81_test_out' # Specify desired path of output directory. If None, defaults to 'lbcreduce_<date>_<time>' in same location as image_dir
 overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
 object :  # Object names you want included in image processing (excludes all others). OBJECT keyword in object image headers. (***Currently only works for ONE object***)

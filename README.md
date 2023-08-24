@@ -5,9 +5,11 @@ Packages needed to run LBCreduce:
 - [conda](https://www.anaconda.com)
 - [ccdproc](https://ccdproc.readthedocs.io/en/latest/install.html)
 - [yaml](https://yaml.org)
-- [astrometry.net](http://astrometry.net/use.html), optional
-- [scamp](https://www.astromatic.net/software/scamp), optional
-- [swarp](https://www.astromatic.net/software/swarp), optional
+- [astrometry.net](http://astrometry.net/use.html)
+- [Source Extractor](https://www.astromatic.net/software/sextractor/)
+- [imfit](https://www.mpe.mpg.de/~erwin/code/imfit/index.html)
+- [pymfit](https://github.com/johnnygreco/pymfit/tree/master)
+- [ArtPop](https://artpop.readthedocs.io/en/latest/), optional
 
 LBCreduce can be installed in the usual way using git clone. Once the repository is cloned:
 ```
@@ -33,20 +35,14 @@ For more control over the image processing steps you'll need to review the optio
 
 ## Explanation of LBCreduce variables and options
 
-### Bias Images (2D bias vs. zero frame)
+### Bias images (2D bias vs. zero frame)
 ...
 
-### Overscan
+### Overscan subtraction and trimming
 ...
 
-### Flat Fielding
+### Flat fielding
 ...
-
-### Dark Current
-...
-
-### Image Stacking
-....
 
 ## Primer on Image Processing
 See the following: [CCD Data Reduction Guide](https://mwcraig.github.io/ccd-as-book/00-00-Preface.html)
