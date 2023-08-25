@@ -304,7 +304,6 @@ def flat(config, file_info):
 			        cat = sextractor.run(np.asarray(combiner.data_arr[idx]), DETECT_MINAREA=3, DETECT_THRESH=5, PIXEL_SCALE=0.2255)
 			        star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
 			        cat = cat[cat.to_pandas().query(star_query).index.values]
-			        print('CHECK catalog: ',cat)
 			        star_mask = routines.create_mask_from_cat(cat, combiner.data_arr[idx].shape, mask_radius_factor=2.0, mask_fn=None)
 			        all_masks[idx] = star_mask
 			        
@@ -314,7 +313,7 @@ def flat(config, file_info):
 			    
 			    # Save masterflat
 			    masterflat = masterflat.to_hdu()
-			    print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+			    print(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT for {chip}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 			    masterflat.writeto(master_name)
 	return
 
