@@ -278,79 +278,45 @@ def flat(config, file_info):
 			date_info = flats_to_combine[mask]
 			if len(date_info) == 0: continue
 			for chip in config['chips']:
-				master_name = os.path.join(config['out_dir'], 'midproc', 'masterflat' + '_' + day + chip + '_' + filt + '.fits')
-				mask = [idx for idx,fi in enumerate(date_info) if chip in fi]
-				chip_info = date_info[mask]
-				if len(chip_info) == 0: continue
-				if len(chip_info) == 1:
-					shutil.copyfile(chip_info[0], master_name)
-					warnings.warn(f'Only one flat to \'combine\' for {master_name}.', AstropyUserWarning)
-					continue
-
-				chip_ccd_objs = []
-				for file in chip_info:
-					ccd_data = CCDData.read(file, unit=config['data_units'], hdu=config['ext'])
-					chip_ccd_objs.append(ccd_data)
-
-				# Make masked median
-				combiner = ccdproc.Combiner(chip_ccd_objs)
-				print('Scaling...')
-				if combine_options['scale'] is not None:
-					combiner.scaling = combine_options['scale']
-				print('Done scaling.')
-
-				all_masks = np.zeros(combiner.data_arr.mask.shape).astype(bool)
-				for idx in range(len(combiner.data_arr.mask)):
-
-					cat = sextractor.run(np.asarray(combiner.data_arr[idx]), DETECT_MINAREA=3, DETECT_THRESH=5, PIXEL_SCALE=0.2255)
-					star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
-					cat = cat[cat.to_pandas().query(star_query).index.values]
-
-					star_mask = routines.create_mask_from_cat(cat, combiner.data_arr[idx].shape, mask_radius_factor=2.0, mask_fn=None)
-					all_masks[idx] = star_mask
-
-				combiner.data_arr.mask = all_masks
-
-				masterflat = combiner.median_combine()
-
-				# Save masterflat
-				masterflat = masterflat.to_hdu()
-				print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-				masterflat.writeto(master_name)
-
-
-				'''
-				# https://ccdproc.readthedocs.io/en/latest/image_combination.html
-				chip_ccd_objs = []
-				for file in chip_info:
-					chip_ccd_objs.append(CCDData.read(file, unit=config['data_units'], hdu=config['ext']))
-				print('\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~chip_ccd_objs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n')
-				combiner = ccdproc.Combiner(chip_ccd_objs)
-				print('Scaling...')
-				if combine_options['scale'] is not None:
-					combiner.scaling = combine_options['scale']
-				print('Done scaling.')
-
-				combiner.sigma_clipping(low_thresh=combine_options['sigma_clip_low_thresh'], high_thresh=combine_options['sigma_clip_high_thresh'], func=combine_options['sigma_clip_func'], dev_func=combine_options['sigma_clip_dev_func'])
-
-				all_masks = np.zeros(combiner.data_arr.mask.shape).astype(bool)
-				for idx in range(len(combiner.data_arr.mask)):
-					mask = combiner.data_arr.mask[idx]
-					mask = (gaussian_filter(mask.astype(float), sigma=4.0, mode='constant', cval=1.0)).astype(bool)
-					all_masks[idx] = mask
-				combiner.data_arr.mask = all_masks
-
-				masterflat = combiner.average_combine()
-				masterflat = masterflat.to_hdu()
-				print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-				masterflat.writeto(master_name)
-				#masterflat = ccdproc.combine(chip_info, output_file=master_name, unit=config['data_units'], **combine_options)
-				'''
-
-	# Get feedback on master flats
-
+			    master_name = os.path.join(config['out_dir'], 'midproc', 'masterflat' + '_' + day + chip + '_' + filt + '.fits')
+			    mask = [idx for idx,fi in enumerate(date_info) if chip in fi]
+			    chip_info = date_info[mask]
+			    if len(chip_info) == 0: continue
+			    if len(chip_info) == 1:
+			        shutil.copyfile(chip_info[0], master_name)
+			        warnings.warn(f'Only one flat to \'combine\' for {master_name}.', AstropyUserWarning)
+			        continue
+			        
+			    chip_ccd_objs = []
+			    for file in chip_info:
+			        ccd_data = CCDData.read(file, unit=config['data_units'], hdu=config['ext'])
+			        chip_ccd_objs.append(ccd_data)
+			        
+			    # Make masked median
+			    combiner = ccdproc.Combiner(chip_ccd_objs)
+			    print('Scaling...')
+			    if combine_options['scale'] is not None:
+			        combiner.scaling = combine_options['scale']
+			    print('Done scaling.')
+			    
+			    all_masks = np.zeros(combiner.data_arr.mask.shape).astype(bool)
+			    for idx in range(len(combiner.data_arr.mask)):
+			        cat = sextractor.run(np.asarray(combiner.data_arr[idx]), DETECT_MINAREA=3, DETECT_THRESH=5, PIXEL_SCALE=0.2255)
+			        star_query = 'FLAGS==0 and ISOAREA_IMAGE > 5 and FWHM_IMAGE > 1 and FWHM_IMAGE < 26'
+			        cat = cat[cat.to_pandas().query(star_query).index.values]
+			        print('CHECK catalog: ',cat)
+			        star_mask = routines.create_mask_from_cat(cat, combiner.data_arr[idx].shape, mask_radius_factor=2.0, mask_fn=None)
+			        all_masks[idx] = star_mask
+			        
+			    combiner.data_arr.mask = all_masks
+			    
+			    masterflat = combiner.median_combine()
+			    
+			    # Save masterflat
+			    masterflat = masterflat.to_hdu()
+			    print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~WRITING MASTERFLAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+			    masterflat.writeto(master_name)
 	return
-
 
 # Calibrate dark frames
 def dark(config, file_info):

@@ -64,6 +64,7 @@ def create_mask_from_cat(cat, mask_shape, mask_radius_factor=1.0, min_radius=1.,
             if filtered_cat is None: filtered_cat = Table(obj)
             else: filtered_cat = vstack([filtered_cat, Table(obj)])
 
+    if filtered_cat is None: return mask.astype(bool)
     if len(filtered_cat) == 0: return mask.astype(bool)
 
     filtered_cat['FLUX_RADIUS'] *= mask_radius_factor
