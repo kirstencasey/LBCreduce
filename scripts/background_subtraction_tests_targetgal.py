@@ -328,7 +328,7 @@ if __name__ == '__main__':
     
     back_models = misc.list_of_strings(args.back_models)
     #out_dir = '/fs/scratch/PCON0003/osu10713/NGC672dwC/prelim_testing'
-    run_background_subtraction_tests(back_models=back_models,overwrite_out_dir=out_dir,psf_num=args.psf_num)
+    run_background_subtraction_tests(back_models=back_models,overwrite_out_dir=args.out_dir,psf_num=args.psf_num)
     
     
     

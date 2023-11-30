@@ -7,7 +7,7 @@ if __name__ == '__main__':
     default_config = os.path.join(lbcred.project_dir, 'register_calibration-config.yml')
     parser.add_argument('-t', '--tmp-path', default='/tmp', help='temporary path for intermediate steps')
     parser.add_argument('--register-images', default=True)
-    parser.add_argument('-c','--calibrate-images', default=True)
+    parser.add_argument('-c','--calibrate-images')
     parser.add_argument('-r', '--ref-cat', help='reference catalog file name')
     parser.add_argument('--index-path', default=None, help='path to astrometry.net index files')
     parser.add_argument('--make-plots', action='store_true')

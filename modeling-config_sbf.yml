@@ -36,7 +36,7 @@ ellip : 0.203482
 n : 0.640198
 I_e : 211.827
 pa : 149.009
-color : 1.0208
+color : 1.0208 
 
 ############################### SBF Options ###############################
 # NOTE:
@@ -45,8 +45,6 @@ color : 1.0208
 k_min : '0.05,0.15' # '0.04,0.08' 
 k_max : '0.3,0.35' # '0.33,0.45'
 randomly_vary_k_limits : True
-#random_k_limit_deviation : 0.05
-#min_random_diff_between_kmin_kmax : 0.15
 num_radial_bins : 400
 use_sigma : False
 plot_percentiles_min : 0.1
@@ -74,3 +72,20 @@ masking_sbf:
   randomly_vary_grow_obj : False
   random_growth_max_deviation : 1.5
   seg_rmin : 2000.0
+  
+get_distance:
+  num_isochrones : 10 # Must be greater than 1. Much more than 10 and this takes a long time to run; the number of MIST isochrones created for the color/mag conversions
+  feh_min : -2.0
+  feh_max : -0.5
+  feh_model : -1.1 # See Kirby, et al. (2013) for the dwarf gal stellar mass -- feh relation
+  age_min : 9.0
+  age_max : 10.2 # Cannot exceed 10.2 
+  correct_for_bias : False
+  sbf_mag_bias : 
+  color_bias : 
+  additional_sbf_mag_uncertainty : 0. # Already includes the 1sigma spread in SBF mag measurements from all num_iters
+  additional_color_uncertainty : 0.
+  plot_mag_color_relation : True
+  plot_distances : True
+  save_id : 'halogas'
+  mist_path : '/users/PCON0003/osu10713/ArtPop_tests/MIST'

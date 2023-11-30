@@ -78,6 +78,9 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
         if cutout_size%2==0: cutout_size+=1
     else:
         cutout_size = 2*(smajor_axis)//1
+        if config['masking_sbf']['fixed_frac_of_radius'] > 1: 
+            cutout_size*=config['masking_sbf']['fixed_frac_of_radius']
+            cutout_size = cutout_size//1
         if cutout_size < psf.shape[0]:
             cutout_size = psf.shape[0]
         if cutout_size%2==0: cutout_size+=1
@@ -251,7 +254,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
     else:
         save_fn = os.path.join(config['out_dir'],config['model_fn'].replace('.fits',f'_sbf-results_iter{run_iter}.png'))
 
-    sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spacial Frequency (pixel$^{-1}$)',
+    sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spatial Frequency (pixel$^{-1}$)',
                     ylabel=f'Power ({color}-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
                     yscale='log', plot_errors=False, ylim_factors=[0.5, 1.1],
                     cmap='gray_r',save_fn=save_fn)
@@ -267,7 +270,7 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
             blank_inputs[key]['results'] = blank_result
             
         # Make it so that sbf_results function plots all the blank fields.
-        sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spacial Frequency (pixel$^{-1}$)',
+        sbf_functions.sbf_results(results, sbf_resid[config['ext']].data, subplots=None, xlabel=r'Spatial Frequency (pixel$^{-1}$)',
                 ylabel=f'Power (${color}$-band)', xscale='linear', percentiles=[config['plot_percentiles_min'], config['plot_percentiles_max']],
                 yscale='log', plot_errors=False, ylim_factors=[0.5, 1.1],
                 cmap='gray_r',save_fn=save_fn.replace('.png','_withblankfields.png'), normalize_ps = True, plot_blank_fields = True, blank_results = blank_inputs)

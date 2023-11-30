@@ -16,11 +16,12 @@ def reduce(config_filename, options = {}):
     logger.info('Getting ready...')
     initial_config = tools.initialize_config(config_filename, options) # Overwrite anything in the config file that was supplied via the command line
     tools.setup_logger(initial_config['logger_level'], log_fn=initial_config['log_to_file'])
-    # Save copy of config to output directory
-    copyfile(config_filename,os.path.join(initial_config['out_dir'],config_filename.split('/')[-1]))
 
     # Do directory stuff
     config, dir_overwritten = interactive.initialize_directories(initial_config)
+    
+    # Save copy of config to output directory
+    copyfile(config_filename,os.path.join(initial_config['out_dir'],config_filename.split('/')[-1]))
 
     # Get raw images
     logger.info('Gathering image information...')

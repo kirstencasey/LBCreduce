@@ -220,8 +220,9 @@ def get_ccd_section(image_header, section_name):
 	ymin = int(section.split(',')[1].split(':')[0]) - 1
 	ymax = int(section.split(':')[-1].split(']')[0])
 
-	#if section_name == 'BIASSEC':	############ DO THIS BETTER!!!!!! ############
-	#	xmin += 10
+	if section_name == 'BIASSEC':	############ DO THIS BETTER!!!!!! ############
+		xmin += 10
+		xmax -= 10
 
 	return ymin, ymax, xmin, xmax # NOTE: To fit the python convention when this function is called, y and x are swapped
 

@@ -225,27 +225,30 @@ def flat(config, file_info):
 		print('~~~~~~~~~~~~~~~~FLATS: ',flat_im['filename'])
 		data = CCDData.read(os.path.join(config['out_dir'], 'midproc',  flat_im['filename']), unit=config['data_units'], hdu=config['ext'])
 		dates.append(data.meta['DATE_OBS'].split('T')[0])
-
+		
+		##### DO ~NOT~ DO BOTH OVERSCAN AND BIAS SUBTRACTION -- PICK ONE!! (pick 2D bias for flats) #####
+		
+		'''
+        ########################### vvvv Overscan subtraction vvvv ###############################
 		# Trim overscan region
-		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['overscan_region'])   ############################# Use bias or overscan??? ################
+		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['overscan_region'])  
 		if use_variable_legendre:
 			new_model = image.find_best_overscan_legendre_model(data[xmin:xmax,ymin:ymax], flat_im, legendre_options, out_dir=os.path.join(config['out_dir'], 'plots'), **variable_legendre_options)
 			overscan_options['model'] = new_model
 		data_o = ccdproc.subtract_overscan(data, overscan=data[xmin:xmax,ymin:ymax], **overscan_options)
 
-		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])  ############################# Use bias or overscan??? ################
+		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])  
 		data_ot = ccdproc.trim_image(data_o[xmin:xmax,ymin:ymax])
 		data_ot.meta[config['data_region']] = f'[1:{data_ot.shape[1]},1:{data_ot.shape[0]}]'
-
-		# Replace dead pixels
-		data_ot, num_dead_pixels = image.replace_dead_pixels(data_ot, padding=1, dead_value=0)
+		########################### ^^^^ Overscan subtraction ^^^^ ###############################
 
 		'''
-		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region'])  ############################# Use bias or overscan??? ################
+		
+		########################### vvvv 2D bias subtraction vvvv ############################### 
+		xmin, xmax, ymin, ymax = image.get_ccd_section(data.meta, config['science_region']) 
 		data_t = ccdproc.trim_image(data[xmin:xmax,ymin:ymax])
 		data_t.meta[config['data_region']] = f'[1:{data_t.shape[1]},1:{data_t.shape[0]}]'
 
-																				############################# Use bias or overscan??? ################
 		# Subtract 2D bias image
 		if flat_im['instrument'] == config['lbc_red']:
 			inst_color = '_R'
@@ -257,7 +260,12 @@ def flat(config, file_info):
 		bias2D = CCDData.read(bias_name, unit=config['data_units'])
 		data_ot = CCDData.subtract(data_t, bias2D)
 		data_ot.meta = data_t.meta
-		'''
+		########################### ^^^^ 2D bias subtraction ^^^^ ############################### 
+		#'''
+		
+		# Replace dead pixels
+		data_ot, num_dead_pixels = image.replace_dead_pixels(data_ot, padding=1, dead_value=0)
+		
 		# Save calibrated flat
 		out_names.append(os.path.join(config['out_dir'], 'midproc', flat_im['filename'].replace('.fits','_OT.fits')))
 		primary_hdu = fits.open(os.path.join(config['out_dir'], 'midproc', flat_im['filename']),ignore_blank=True)[0]
