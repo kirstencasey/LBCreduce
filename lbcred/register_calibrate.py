@@ -514,11 +514,11 @@ def register_images(tmp_path, bandpass, index_path=None, ref_cat=None, make_plot
         with open(config_fn, 'r') as config:
             config = yaml.load(config, Loader=yaml.FullLoader)
         # Save copy of config to output directory
-        copyfile(config_fn,os.path.join(config['out_dir'],config_fn.split('/')[-1]))
+        copyfile(config_fn,os.path.join(config['out_dir'],config_fn.split('/')[-1].replace('.yml','_savecopy.yml')))
     else:
         config = config_fn
         # Save copy of config to output directory
-        with open(os.path.join(config['out_dir'],'register_calibration-config.yml'), 'w') as outfile:
+        with open(os.path.join(config['out_dir'],'register_calibration-config_savecopy.yml'), 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 
     glob_select = config['glob_select']

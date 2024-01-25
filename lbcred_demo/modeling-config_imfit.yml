@@ -1,0 +1,215 @@
+############## Imfit Modeling Parameters ##############
+
+############################### Directory and File Selection Options ###############################
+# NOTE: This section covers important information about how LBCreduce will find the images you want to model.
+
+image_dir : '/users/PCON0003/osu10713/projects/LBCreduce/scripts/lbcred_demo'  # Where all the files needed for image reduction are located
+out_dir : '/users/PCON0003/osu10713/projects/LBCreduce/scripts/lbcred_demo'  # Specify desired path of output directory.
+run_imfit : True
+run_artpop : True # If True uses ArtPop Options to create and save ArtPop models (filename will be artpop_model_fn under Color Options), only injects them into image if inject_artpop_model is True
+inject_artpop_model : True # If True and run_artpop is False, you must supply artpop_model_fn under the Color Options.
+use_pregen_artpops : False
+pregen_artpop_dir : '/users/PCON0003/osu10713/ArtPop_tests/ArtPop_models'
+random_inject_position : False
+exclude_positions_mask : 'random_inject_mask.fits'
+use_legacy_survey : False # If True get images/psfs from Legacy Survey for artpop/imfit modeling. See Legacy Survey options under ArtPop Options
+check_image_size : False
+smooth_images : False # Doesn't work.
+
+############################### Color Options ###############################
+# NOTE: 'color1' should typically be the redder of the two if both colors are used. Ex. color1->'r' and color2->'b'.
+color1 :
+  name : 'r'
+  image_fn : 'blank_r.fits'
+  mask_fn :  'blank_r.fits' # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
+  psf : 'lbcr.median_psf.fits'
+  zpt : 28.
+  extinction :  0.205 # Use CTIO S&F A^c mag for each band from here: https://irsa.ipac.caltech.edu/applications/DUST/
+  color_term : 0. 
+  artpop_model_fn : 'artpop_model_r.fits' 
+  artpop_band : 'Bessell_R'
+  artpop_mag :  
+  artpop_sbfmag : 
+  efficiency : 1.0 
+  sky : 8599. # For imfit if variance image is not given #888.818468786744
+  sky_sb : 21.0103  # For artpop (should be in AB mag system); turn this on/off under ArtPop Options
+  masking_imfit: # This is ignored if mask_fn is specified
+    thresh : 16.5
+    kern_sig : 1.0
+    backsize : 15
+    obj_rmin : 10
+    grow_obj : 12.0
+    seg_rmin : 0.0
+
+color2 :
+  name : 'b'
+  image_fn : 'blank_b.fits' #'lbcb.20191220.080715-chip2_backsub_M81blob.proc_reg.fits' #'random_position_b.fits' 
+  mask_fn : 'blank_b.fits' # Leave blank if you want the mask to be generated for you. The mask file should be located in image_dir.
+  psf : 'lbcb.median_psf.fits'
+  zpt : 28.
+  extinction : 0.353 
+  color_term : 0.
+  artpop_model_fn : 'artpop_model_b.fits' 
+  artpop_band : 'Bessell_B'
+  artpop_mag : 
+  efficiency : 1.0
+  sky : 1770.086655062218  # For imfit if variance image is not given #178.7402736559787
+  sky_sb : 22.7025  # For artpop (should be in AB mag system); turn this on/off under ArtPop Options
+  masking_imfit: # This is ignored if mask_fn is specified
+    thresh : 16.5
+    kern_sig : 1.0
+    backsize : 15
+    obj_rmin : 10
+    grow_obj : 9.0
+    seg_rmin : 0.0
+
+combine_imfit_masks : True
+
+############################### Other Common Options ###############################
+# NOTE: These are other commonly-used options you may find useful to change depending on your needs.
+
+overwrite : True # Allow lbcreduce to overwrite out_dir if it already exists?
+pixscale : 0.22400 # arcseconds/pixel
+exposure_time : 300.281 # 30.262 # seconds
+gain : 1.75
+ext : 0
+logger_level : 'DEBUG' # What is the lowest-level output you want to see on the terminal (or in the logger file, if applicable)
+log_to_file :  # Filename of output file for logger. Logger not output to file if no filename given
+
+
+############################### Imfit Options ###############################
+# NOTE:
+
+# Imfit modeling options
+readnoise : 12.0
+ncombined : 8
+include_exposure_time : False # Should only be True if images are in ADU/sec/pixel, False if ADU/pixel
+variance_image : 'flat_variance_image.fits'
+
+imfit_steps:
+  step1 :
+    color : 'r' # Must correspond to color name under Color Options
+    functions : 'TiltedSkyPlane,Sersic' # Separate using comma
+  step2 :
+    color : 'b' # Must correspond to color name under Color Options
+    functions : 'TiltedSkyPlane,Sersic' # Separate using comma
+    fix_struc_step : 'step1' # Specify which step to fix structure to (e.g. 'step1')
+
+star_imfit :
+  step1 :
+    color : 'b'
+    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
+  step2 :
+    color : 'r'
+    functions : 'Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,Gaussian,FlatSky'
+    
+# Sersic parameters
+sersic_params :
+  xpos_guess : 525.0 #513.0
+  ypos_guess : 525.0 #493.0
+  pos_err : 100.
+  fix_PA : False # Applies to EVERY imfit step specified above
+  PA_guess : 150. # From +y axis (NOTE: ArtPop measures from the +x axis, so 0 in ArtPop is 90 here.)
+  PA_min : -400.
+  PA_max : 400.0
+  fix_n : False # Applies to EVERY imfit step specified above
+  n_guess : 0.6 
+  n_min : 0.0
+  n_max : 1.5
+  fix_ell : False # Applies to EVERY imfit step specified above
+  ell_guess : 0.2
+  ell_min : -0.7
+  ell_max : 0.7
+  fix_r_e : False # Applies to EVERY imfit step specified above
+  r_e_guess : 80 # Pixels
+  r_e_min : 20.0
+  r_e_max : 750
+  fix_I_e : False # Applies to EVERY imfit step specified above - these values are hard coded for now in imfit.py
+  I_e_guess : 100 #20
+  I_e_min : 5.0
+  I_e_max : 1000
+
+# Tilted plane parameters
+tilted_plane_params :
+  I_0_guess : 0
+  I_0_min : -50
+  I_0_max : 50
+  m_x_guess : -0.005
+  m_x_min : -5.
+  m_x_max : 5.
+  m_y_guess : -0.01
+  m_y_min : -5.
+  m_y_max : 5.
+
+flat_sky_params:
+  I_sky_guess : 0 #5000
+  I_sky_min : -10 #-100 # 0
+  I_sky_max : 10 #100  #11000
+
+gauss_params :
+  xpos_guess : 1000
+  ypos_guess : 1000
+  pos_err : 5.
+  PA_guess : 20.
+  PA_min : 0.
+  PA_max : 360.
+  ell_guess : 0.05
+  ell_min : -1.
+  ell_max : 1.
+  I_0_guess : 10000.
+  I_0_min : 0.
+  I_0_max : 75000.
+  sigma_guess : 150
+  sigma_min : 0.1
+  sigma_max : 1500
+
+# Misc. imfit masking options
+
+mask_bright_star : False
+circle_mask:
+  radius : 375 #255
+  xpos : 240
+  ypos : 28
+model_subtract_star : False # Specify imfit functions for modeling under star_imfit
+masking_imfit_star :
+  thresh : 4.
+  kern_sig : 1.0
+  backsize : 15
+  obj_rmin : 100
+  grow_obj : 4.0
+  seg_rmin : 0.0
+
+############################### ArtPop Options ###############################
+xpos_inject : 525
+ypos_inject : 525
+mist_path : '/users/PCON0003/osu10713/ArtPop_tests/MIST'
+random_state : #100
+use_src_counts : True # Set this to True when you want the 'noiseless' version of the ArtPop model for imfit to run on (i.e. if injecting into a real image).
+telescope_diameter : 8.25 # meters
+include_sky_sb : False # Specify the SB in the Color Options section
+include_readnoise : True # Set to False if injecting the ArtPop model into a real image that already has readnoise included
+add_remnants : False
+
+
+artpop_model_params :
+  log_age  : 10          # log of age in years
+  feh : -1.1                # metallicity [Fe/H]
+  r_eff : 700         # effective radius, parsecs
+  n : 0.5                  # Sersic index
+  theta : 20.                # position angle, degrees
+  ellip : 0.1               # ellipticity
+  total_mass : 10000000.0      # stellar mass (NOTE: cannot be written in scientific notation, must include all digits)
+  imf : 'kroupa'              # initial mass function
+  phot_system : 'UBVRIplus'   # photometric system
+  distance : 3              # distance to system, Mpc
+  xy_dim : 1051               # image dimension
+
+
+# Legacy Survey options
+legacy_survey:
+  ra : 135.5933
+  dec : 73.2221
+  zpt : 22.5
+  pixel_scale : 0.262
+  phot_system : 'DECam'
+  fn_root : 'legacy_survey'

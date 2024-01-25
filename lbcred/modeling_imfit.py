@@ -17,11 +17,11 @@ def modeling_imfit(config_filename, options = {}, iter=None, fn_stub=None, backm
         with open(config_filename, 'r') as config:
             config = yaml.load(config, Loader=yaml.FullLoader)
         # Save copy of config to output directory
-        copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1]))
+        copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1].replace('.yml','_savecopy.yml')))
     else:
         config = config_filename
         # Save copy of config to output directory
-        with open(os.path.join(config['out_dir'],'modeling-config_imfit.yml'), 'w') as outfile:
+        with open(os.path.join(config['out_dir'],'modeling-config_imfit_savecopy.yml'), 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 
 	# Replace options input via command line into config

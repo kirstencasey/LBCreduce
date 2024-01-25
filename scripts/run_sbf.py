@@ -9,6 +9,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_fn', type=str, help='filename of the galaxy model located in image_dir')
     parser.add_argument('--resid_fn', type=str, help='filename of the galaxy residual located in image_dir')
     parser.add_argument('--model_summary_fn', type=str, help='filename of sersic fitting result from imfit - should contain info on radius, ellipticity, position, and position angle')
+    parser.add_argument('--model_functions', type=str, help='comma deliminated string containing the the imfit functions used for the diffuse light model; ex. \'TiltedSkyPlane,Sersic\'')
     parser.add_argument('--radius', type=float, help='major axis of model in pixels')
     parser.add_argument('--xpos', type=float, help='x-position (FITS standard) of model')
     parser.add_argument('--ypos', type=float, help='x-position (FITS standard) of model')
@@ -21,6 +22,9 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=str, help='specify output directory name/path; default is located in the same directory as image_dir with name \'lbcreduce_modeling_<date>_<time>\'')
     parser.add_argument('-ext','--extension', type=int, help='extension of FITS file data to be used')
     args = parser.parse_args()
+    
+    if args.model_functions is not None: model_functions = lbcred.utils.list_of_strings(args.model_functions)
+    else: model_functions = None
 
     options = {
         'image_dir' : args.image_dir,
@@ -39,4 +43,4 @@ if __name__ == '__main__':
         'out_dir' : args.out_dir
     }
 
-    lbcred.modeling_sbf(config_filename=args.config, options=options)
+    lbcred.modeling_sbf(config_filename=args.config, options=options, imfit_functions=model_functions)

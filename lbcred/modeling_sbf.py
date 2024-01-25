@@ -17,11 +17,11 @@ def modeling_sbf(config_filename, options = {}, run_iter=None, imfit_functions=N
         with open(config_filename, 'r') as filename:
             config = yaml.load(filename, Loader=yaml.FullLoader)
         # Save copy of config to output directory
-        copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1]))
+        copyfile(config_filename,os.path.join(config['out_dir'],config_filename.split('/')[-1].replace('.yml','_savecopy.yml')))
     else:
         config = config_filename
         # Save copy of config to output directory
-        with open(os.path.join(config['out_dir'],'modeling-config_sbf.yml'), 'w') as outfile:
+        with open(os.path.join(config['out_dir'],'modeling-config_sbf_savecopy.yml'), 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 
 	# Replace options input via command line into config

@@ -21,7 +21,7 @@ def reduce(config_filename, options = {}):
     config, dir_overwritten = interactive.initialize_directories(initial_config)
     
     # Save copy of config to output directory
-    copyfile(config_filename,os.path.join(initial_config['out_dir'],config_filename.split('/')[-1]))
+    copyfile(config_filename,os.path.join(initial_config['out_dir'],config_filename.split('/')[-1].replace('.yml','_savecopy.yml')))
 
     # Get raw images
     logger.info('Gathering image information...')
