@@ -58,8 +58,6 @@ Default configuration file: *modeling-config_sbf.yml*
 
 Major function used: *lbcred.modeling_sbf*, defined in *LBCreduce/lbcred/modeling_sbf.py*.
 
-Major function used: *lbcred.modeling_imfit*, defined in *LBCreduce/lbcred/modeling_imfit.py*.
-
 See also: *LBCreduce/lbcred_demo/*
 ```
 python run_sbf.py --config='path/to/your/config/file/your_config_file.yml'
